@@ -59,18 +59,25 @@ export const corsOptions = {
         const allowedOrigins = [
             process.env.FRONTEND_URL || 'http://localhost:3000',
             'http://localhost:3000', // Always allow localhost in development
+            'https://gitcraft-gamma.vercel.app', // Production Vercel frontend
         ];
+
+        // Also allow any vercel.app subdomain for preview deployments
+        const isVercelPreview = origin && origin.endsWith('.vercel.app');
 
         // Allow requests with no origin (mobile apps, curl, etc.)
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+        if (allowedOrigins.includes(origin) || isVercelPreview || process.env.NODE_ENV !== 'production') {
             callback(null, true);
         } else {
+            console.log('CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     optionsSuccessStatus: 200,
 };
 
