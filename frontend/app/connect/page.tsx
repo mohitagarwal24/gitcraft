@@ -201,7 +201,20 @@ function ConnectContent() {
 
       const data = await response.json();
 
-      // Save connection info
+      // Check if repository already has documentation
+      if (data.alreadyExists) {
+        // Save connection info
+        if (data.connectionInfo) {
+          saveConnectedRepo(data.connectionInfo);
+        }
+
+        // Show message and redirect to repos page
+        alert(`Repository "${selectedRepo}" already has documentation in Craft! Redirecting to your connected repositories.`);
+        router.push(`/repos?session=${sessionId}`);
+        return;
+      }
+
+      // Save connection info for new repos
       if (data.connectionInfo) {
         saveConnectedRepo(data.connectionInfo);
       }

@@ -436,13 +436,17 @@ router.get('/connected', async (req, res) => {
     const repoStore = req.app.locals.repoStore;
     const allRepos = repoStore.getAll();
 
-    // Filter by user's GitHub token (only show user's repos)
-    const userRepos = allRepos.filter(repo => repo.githubToken === session.accessToken);
+    // Filter by user ID (not accessToken, since tokens change on re-auth)
+    const userId = session.user?.id;
+    const userRepos = allRepos.filter(repo => {
+      // Match by user ID (stored user object has id field)
+      return repo.user?.id === userId || repo.user?.login === session.user?.login;
+    });
 
     res.json({
       success: true,
       repositories: userRepos.map(repo => ({
-        repoFullName: repo.repoFullName,
+        repoFullName: repo.repoFullName || repo.id,
         documentTitle: repo.documentTitle,
         documentId: repo.documentId,
         connectedAt: repo.connectedAt,
