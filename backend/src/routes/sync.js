@@ -26,12 +26,12 @@ router.post('/analyze', async (req, res) => {
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 
-    // Check if repository is already connected with existing documentation
+    // Check if repository is already connected with existing documentation (in our DB)
     const repoStore = req.app.locals.repoStore;
     const existingRepo = repoStore.get(`${owner}/${repo}`);
 
     if (existingRepo && existingRepo.documentId) {
-      console.log(`📄 Repository ${owner}/${repo} already has documentation`);
+      console.log(`📄 Repository ${owner}/${repo} already has documentation (from DB)`);
       return res.json({
         success: true,
         alreadyExists: true,
@@ -47,6 +47,57 @@ router.post('/analyze', async (req, res) => {
           connectedAt: existingRepo.connectedAt
         }
       });
+    }
+
+    // Also check directly in Craft space (in case DB was cleared but doc exists)
+    console.log(`🔍 Checking if document exists in Craft space for ${owner}/${repo}...`);
+    const CraftAdvancedIntegration = (await import('../integrations/craft-advanced.js')).default;
+    const craftChecker = new CraftAdvancedIntegration(craftMcpUrl);
+
+    try {
+      const craftExistence = await craftChecker.documentExists(`${owner}/${repo}`);
+
+      if (craftExistence.exists) {
+        console.log(`📄 Document found in Craft space: ${craftExistence.documentTitle}`);
+
+        // Store in our database for future reference
+        await repoStore.set(`${owner}/${repo}`, {
+          githubToken: session.accessToken,
+          craftMcpUrl,
+          documentId: craftExistence.documentId,
+          documentTitle: craftExistence.documentTitle,
+          sessionId,
+          user: session.user
+        });
+
+        // Add to continuous sync
+        const syncService = req.app.locals.syncService;
+        if (syncService) {
+          syncService.addRepository(`${owner}/${repo}`, {
+            githubToken: session.accessToken,
+            craftMcpUrl
+          });
+        }
+
+        return res.json({
+          success: true,
+          alreadyExists: true,
+          message: 'Repository already has documentation in Craft',
+          craftDocument: {
+            id: craftExistence.documentId,
+            title: craftExistence.documentTitle
+          },
+          connectionInfo: {
+            repo: `${owner}/${repo}`,
+            documentId: craftExistence.documentId,
+            documentTitle: craftExistence.documentTitle,
+            connectedAt: new Date().toISOString()
+          }
+        });
+      }
+    } catch (craftError) {
+      console.warn(`⚠️  Could not check Craft space: ${craftError.message}`);
+      // Continue with analysis if Craft check fails
     }
 
     console.log(`🚀 Starting analysis for ${owner}/${repo}...`);
