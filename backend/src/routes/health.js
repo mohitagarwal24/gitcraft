@@ -6,7 +6,7 @@ const router = express.Router();
 /**
  * Basic health check
  */
-router.get('/health', (req, res) => {
+router.get('/', (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -17,7 +17,7 @@ router.get('/health', (req, res) => {
 /**
  * Readiness probe (checks database connection)
  */
-router.get('/health/ready', async (req, res) => {
+router.get('/ready', async (req, res) => {
     const checks = {
         server: 'ok',
         database: 'unknown',
