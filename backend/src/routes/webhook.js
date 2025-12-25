@@ -6,9 +6,17 @@ import DocumentationUpdater from '../agents/updater.js';
 
 const router = express.Router();
 
-// In-memory storage for repository configurations
-// This will be replaced by database in production
-const repoConfigs = new Map();
+/**
+ * Helper to get repo config from persistent store
+ */
+function getRepoConfig(repoStore, repoFullName) {
+  const repo = repoStore.get(repoFullName);
+  if (!repo) return null;
+  return {
+    githubToken: repo.githubToken,
+    craftMcpUrl: repo.craftMcpUrl,
+  };
+}
 
 /**
  * GitHub webhook handler
@@ -28,14 +36,17 @@ router.post('/github', async (req, res) => {
 
     console.log(`📨 Received GitHub webhook: ${event}`);
 
+    // Get repoStore from app.locals
+    const repoStore = req.app.locals.repoStore;
+
     // Handle pull request events
     if (event === 'pull_request') {
-      await handlePullRequestEvent(data);
+      await handlePullRequestEvent(data, repoStore);
     }
 
-    // Handle push events (optional)
+    // Handle push events (direct commits to main/master)
     if (event === 'push') {
-      await handlePushEvent(data);
+      await handlePushEvent(data, repoStore);
     }
 
     res.status(200).json({ success: true, event });
@@ -48,7 +59,7 @@ router.post('/github', async (req, res) => {
 /**
  * Handle pull request events
  */
-async function handlePullRequestEvent(data) {
+async function handlePullRequestEvent(data, repoStore) {
   const { action, pull_request, repository } = data;
 
   // Only process merged PRs
@@ -62,10 +73,10 @@ async function handlePullRequestEvent(data) {
 
   console.log(`  ✅ Processing merged PR #${pull_request.number} for ${repoFullName}`);
 
-  // Get repository configuration
-  const config = repoConfigs.get(repoFullName);
+  // Get repository configuration from persistent store
+  const config = getRepoConfig(repoStore, repoFullName);
   if (!config) {
-    console.warn(`  ⚠️  No configuration found for ${repoFullName}`);
+    console.warn(`  ⚠️  No configuration found for ${repoFullName} - repository may not be connected`);
     return;
   }
 
@@ -92,12 +103,18 @@ async function handlePullRequestEvent(data) {
 /**
  * Handle push events (direct commits to main/master)
  */
-async function handlePushEvent(data) {
+async function handlePushEvent(data, repoStore) {
   const { repository, ref, commits } = data;
 
   // Only process pushes to main/master branch
   if (!ref.endsWith('/main') && !ref.endsWith('/master')) {
     console.log(`  ℹ️  Ignoring push to ${ref} (not main/master)`);
+    return;
+  }
+
+  // Skip if no commits (e.g., branch deletion)
+  if (!commits || commits.length === 0) {
+    console.log(`  ℹ️  Ignoring push event: no commits`);
     return;
   }
 
@@ -107,10 +124,10 @@ async function handlePushEvent(data) {
 
   console.log(`  📤 Processing push to ${repoFullName}:${branchName} (${commits.length} commits)`);
 
-  // Get repository configuration
-  const config = repoConfigs.get(repoFullName);
+  // Get repository configuration from persistent store
+  const config = getRepoConfig(repoStore, repoFullName);
   if (!config) {
-    console.warn(`  ⚠️  No configuration found for ${repoFullName}`);
+    console.warn(`  ⚠️  No configuration found for ${repoFullName} - repository may not be connected`);
     return;
   }
 
@@ -192,8 +209,10 @@ function verifySignature(payload, signature) {
 
 /**
  * Register repository for webhook updates
+ * Note: This is now just for explicit webhook registration
+ * The main repo config is stored via the /sync/analyze endpoint
  */
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const { repoFullName, githubToken, craftMcpUrl } = req.body;
 
   if (!repoFullName || !githubToken || !craftMcpUrl) {
@@ -202,10 +221,12 @@ router.post('/register', (req, res) => {
     });
   }
 
-  repoConfigs.set(repoFullName, {
+  const repoStore = req.app.locals.repoStore;
+
+  // Add or update repo in persistent store
+  await repoStore.set(repoFullName, {
     githubToken,
     craftMcpUrl,
-    registeredAt: new Date().toISOString()
   });
 
   console.log(`✅ Registered webhook for ${repoFullName}`);
@@ -220,9 +241,11 @@ router.post('/register', (req, res) => {
 /**
  * Unregister repository
  */
-router.delete('/register/:repoFullName', (req, res) => {
+router.delete('/register/:repoFullName', async (req, res) => {
   const { repoFullName } = req.params;
-  const deleted = repoConfigs.delete(repoFullName);
+  const repoStore = req.app.locals.repoStore;
+
+  const deleted = await repoStore.delete(decodeURIComponent(repoFullName));
 
   if (deleted) {
     res.json({ success: true, message: `Webhook unregistered for ${repoFullName}` });
@@ -235,16 +258,13 @@ router.delete('/register/:repoFullName', (req, res) => {
  * List registered repositories
  */
 router.get('/registered', (req, res) => {
-  const repos = Array.from(repoConfigs.entries()).map(([name, config]) => ({
-    name,
-    registeredAt: config.registeredAt
+  const repoStore = req.app.locals.repoStore;
+  const repos = repoStore.getAll().map(repo => ({
+    name: repo.repoFullName || repo.id,
+    registeredAt: repo.connectedAt
   }));
 
   res.json({ repos });
 });
 
-// Export repoConfigs for use in other routes
-router.repoConfigs = repoConfigs;
-
 export default router;
-

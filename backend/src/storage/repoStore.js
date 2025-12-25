@@ -91,11 +91,17 @@ class RepositoryStore {
    * Add or update repository
    */
   async set(repoFullName, config) {
+    // Convert timestamps to Date objects for Drizzle ORM compatibility
+    const connectedAt = config.connectedAt
+      ? (config.connectedAt instanceof Date ? config.connectedAt : new Date(config.connectedAt))
+      : new Date();
+    const lastUpdated = new Date();
+
     const enrichedConfig = {
       id: repoFullName,
       ...config,
-      connectedAt: config.connectedAt || new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
+      connectedAt,
+      lastUpdated,
     };
 
     if (this.dbEnabled) {
@@ -107,7 +113,7 @@ class RepositoryStore {
             target: repositories.id,
             set: {
               ...enrichedConfig,
-              lastUpdated: new Date().toISOString(),
+              lastUpdated: new Date(),
             },
           });
         console.log(`✅ Repository saved to database: ${repoFullName}`);

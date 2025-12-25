@@ -26,6 +26,29 @@ router.post('/analyze', async (req, res) => {
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 
+    // Check if repository is already connected with existing documentation
+    const repoStore = req.app.locals.repoStore;
+    const existingRepo = repoStore.get(`${owner}/${repo}`);
+
+    if (existingRepo && existingRepo.documentId) {
+      console.log(`📄 Repository ${owner}/${repo} already has documentation`);
+      return res.json({
+        success: true,
+        alreadyExists: true,
+        message: 'Repository already has documentation in Craft',
+        craftDocument: {
+          id: existingRepo.documentId,
+          title: existingRepo.documentTitle
+        },
+        connectionInfo: {
+          repo: `${owner}/${repo}`,
+          documentId: existingRepo.documentId,
+          documentTitle: existingRepo.documentTitle,
+          connectedAt: existingRepo.connectedAt
+        }
+      });
+    }
+
     console.log(`🚀 Starting analysis for ${owner}/${repo}...`);
 
     // Create analyzer
@@ -42,9 +65,9 @@ router.post('/analyze', async (req, res) => {
     );
 
     // Register repository in persistent store
-    const repoStore = req.app.locals.repoStore;
+    // Note: repoStore was already accessed above for the existence check
     const syncService = req.app.locals.syncService;
-    
+
     await repoStore.set(`${owner}/${repo}`, {
       githubToken: session.accessToken,
       craftMcpUrl,
@@ -187,7 +210,7 @@ router.get('/status/:owner/:repo', async (req, res) => {
     }
 
     const repoFullName = `${owner}/${repo}`;
-    
+
     // Check if repo is in store
     const repoStore = req.app.locals.repoStore;
     const repoConfig = repoStore ? repoStore.get(repoFullName) : null;
@@ -246,8 +269,8 @@ router.post('/test-craft', async (req, res) => {
 
     res.json({
       success: isConnected,
-      message: isConnected 
-        ? 'Craft MCP connection successful' 
+      message: isConnected
+        ? 'Craft MCP connection successful'
         : 'Craft MCP connection failed - files will be generated locally',
       tools: craft.availableTools?.map(t => t.name) || [],
       mcpUrl: craftMcpUrl,
@@ -279,7 +302,7 @@ router.post('/debug-mcp', async (req, res) => {
     }
 
     const axios = require('axios');
-    
+
     // Parse SSE response
     function parseSSE(data) {
       if (typeof data !== 'string') return data;
@@ -288,7 +311,7 @@ router.post('/debug-mcp', async (req, res) => {
         if (line.startsWith('data: ')) {
           try {
             return JSON.parse(line.substring(6));
-          } catch (e) {}
+          } catch (e) { }
         }
       }
       try { return JSON.parse(data); } catch (e) { return { raw: data }; }
@@ -361,7 +384,7 @@ router.get('/connected', async (req, res) => {
     // Get repos from store
     const repoStore = req.app.locals.repoStore;
     const allRepos = repoStore.getAll();
-    
+
     // Filter by user's GitHub token (only show user's repos)
     const userRepos = allRepos.filter(repo => repo.githubToken === session.accessToken);
 
@@ -446,7 +469,7 @@ router.delete('/disconnect/:repoFullName', async (req, res) => {
 router.get('/sync-status', (req, res) => {
   const syncService = req.app.locals.syncService;
   const repoStore = req.app.locals.repoStore;
-  
+
   if (!syncService) {
     return res.json({
       isRunning: false,

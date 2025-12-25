@@ -27,6 +27,11 @@ import healthRoutes from './routes/health.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust first proxy (Render, Railway, etc.) for correct IP detection in rate limiting
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Initialize stores
 const sessionStore = new SessionStore();
 const repoStore = new RepositoryStore();
