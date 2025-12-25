@@ -12,7 +12,9 @@ const oauthStates = new Map();
  */
 router.get('/github', authLimiter, (req, res) => {
   const clientId = process.env.GITHUB_CLIENT_ID;
-  const redirectUri = `${req.protocol}://${req.get('host')}/auth/github/callback`;
+  // Always use https in production (reverse proxies like Render/Railway may report http)
+  const protocol = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
+  const redirectUri = `${protocol}://${req.get('host')}/auth/github/callback`;
   const scope = 'repo,read:user';
   const state = generateRandomState();
 
@@ -54,7 +56,7 @@ router.get('/github/callback', async (req, res) => {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: `${req.protocol}://${req.get('host')}/auth/github/callback`
+        redirect_uri: `${process.env.NODE_ENV === 'production' ? 'https' : req.protocol}://${req.get('host')}/auth/github/callback`
       })
     });
 
