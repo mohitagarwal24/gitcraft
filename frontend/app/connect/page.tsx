@@ -289,7 +289,7 @@ function ConnectContent() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <a href="/" className="flex items-center space-x-3 cursor-pointer">
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 className="w-11 h-11 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20"
@@ -300,7 +300,7 @@ function ConnectContent() {
                 <h1 className="text-lg font-bold text-white">GitCraft</h1>
                 <p className="text-xs text-slate-500">Living Documentation</p>
               </div>
-            </div>
+            </a>
             <div className="flex items-center gap-3">
               {connectedRepos.length > 0 && (
                 <motion.button
@@ -572,15 +572,8 @@ function ConnectContent() {
                 <div className="w-20 h-20 border-4 border-slate-800 rounded-full"></div>
                 <div className="w-20 h-20 border-4 border-transparent border-t-blue-500 rounded-full absolute top-0"></div>
               </motion.div>
-              <h2 className="text-2xl font-bold text-white mb-2">Creating Your Engineering Brain</h2>
-              <p className="text-slate-400 mb-8">AI is analyzing your codebase...</p>
-
-              <div className="space-y-3 max-w-md mx-auto">
-                <ProgressItem text="Fetching repository" status="done" />
-                <ProgressItem text="AI analysis" status="active" />
-                <ProgressItem text="Generating documentation" status="pending" />
-                <ProgressItem text="Creating in Craft" status="pending" />
-              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Creating Documentation</h2>
+              <p className="text-slate-400">Analyzing your codebase and generating documentation...</p>
             </motion.div>
           )}
         </AnimatePresence>

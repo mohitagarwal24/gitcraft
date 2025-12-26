@@ -427,29 +427,95 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
   /**
    * Check for new PRs and process updates
    */
-  async checkForUpdates(owner, repo) {
+  async checkForUpdates(owner, repo, branch = 'main') {
     try {
       const state = await this.getDocumentationState(`${owner}/${repo}`);
       const lastPR = state.lastProcessedPR || 0;
+      const lastSync = state.lastSync;
 
-      // Get recent merged PRs
+      let prCount = 0;
+      let commitCount = 0;
+      const processedPRs = [];
+      const processedCommits = [];
+
+      // 1. Check for new merged PRs
+      console.log(`🔍 Checking for new PRs in ${owner}/${repo}...`);
       const prs = await this.github.listPullRequests(owner, repo, 'closed');
       const newPRs = prs.filter(pr => pr.number > lastPR);
 
-      console.log(`Found ${newPRs.length} new PRs to process`);
+      console.log(`  Found ${newPRs.length} new PRs to process`);
 
       for (const pr of newPRs) {
-        await this.processUpdate({
-          owner,
-          repo,
-          prNumber: pr.number,
-          branch: pr.baseBranch
-        });
+        try {
+          await this.processUpdate({
+            owner,
+            repo,
+            prNumber: pr.number,
+            branch: pr.baseBranch
+          });
+          prCount++;
+          processedPRs.push(pr.number);
+        } catch (err) {
+          console.error(`  ❌ Failed to process PR #${pr.number}:`, err.message);
+        }
+      }
+
+      // 2. Check for new commits (since last sync)
+      console.log(`🔍 Checking for new commits in ${owner}/${repo}...`);
+      try {
+        const commits = await this.github.listRecentCommits(owner, repo, branch, lastSync);
+
+        // Filter out merge commits (usually from PRs) and only keep direct commits
+        const directCommits = commits.filter(c => !c.message.startsWith('Merge '));
+
+        if (directCommits.length > 0) {
+          console.log(`  Found ${directCommits.length} new commits to process`);
+
+          // Get commit details for significance analysis
+          const latestCommit = directCommits[0];
+          const commitDetails = await this.github.getCommit(owner, repo, latestCommit.sha);
+
+          // Analyze significance
+          const significance = await this.llm.analyzeCommitSignificance(
+            directCommits.slice(0, 10).map(c => ({
+              sha: c.sha,
+              message: c.message,
+              author: c.author
+            })),
+            commitDetails.files || []
+          );
+
+          if (significance.isSignificant) {
+            console.log(`  🤖 Commits are significant, updating documentation...`);
+
+            await this.processCommitUpdate({
+              owner,
+              repo,
+              commits: directCommits.slice(0, 10),
+              commitDetails,
+              significance,
+              branch
+            });
+
+            commitCount = directCommits.length;
+            processedCommits.push(...directCommits.slice(0, 10).map(c => c.sha.substring(0, 7)));
+          } else {
+            console.log(`  ⏭️  Commits are trivial, skipping update`);
+          }
+        } else {
+          console.log(`  No new commits found`);
+        }
+      } catch (err) {
+        console.error(`  ⚠️  Error checking commits:`, err.message);
+        // Continue even if commit check fails
       }
 
       return {
-        processed: newPRs.length,
-        prs: newPRs.map(pr => pr.number)
+        processed: prCount + (commitCount > 0 ? 1 : 0),
+        prs: processedPRs,
+        commits: processedCommits,
+        prCount,
+        commitCount
       };
     } catch (error) {
       console.error('Error checking for updates:', error);

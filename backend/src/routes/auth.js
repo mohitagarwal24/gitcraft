@@ -90,6 +90,37 @@ router.get('/github/callback', async (req, res) => {
       }
     });
 
+    // Update existing repos with fresh accessToken (tokens expire/change on re-auth)
+    const repoStore = req.app.locals.repoStore;
+    const syncService = req.app.locals.syncService;
+
+    if (repoStore) {
+      const userRepos = repoStore.getAll().filter(repo =>
+        repo.user?.id === userData.id || repo.user?.login === userData.login
+      );
+
+      for (const repo of userRepos) {
+        // Update with fresh token
+        await repoStore.set(repo.id || repo.repoFullName, {
+          ...repo,
+          githubToken: accessToken,
+          sessionId
+        });
+
+        // Update sync service config with fresh token
+        if (syncService && syncService.repoConfigStore) {
+          syncService.repoConfigStore.set(repo.id || repo.repoFullName, {
+            githubToken: accessToken,
+            craftMcpUrl: repo.craftMcpUrl
+          });
+        }
+      }
+
+      if (userRepos.length > 0) {
+        logger.info(`Updated ${userRepos.length} repos with fresh token for ${userData.login}`);
+      }
+    }
+
     logger.info(`User authenticated: ${userData.login} (${sessionId})`);
 
     // Redirect to frontend with session

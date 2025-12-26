@@ -160,11 +160,11 @@ router.post('/analyze', async (req, res) => {
 });
 
 /**
- * Manual sync - check for new PRs and update docs
+ * Manual sync - check for new PRs and commits, update docs
  */
 router.post('/manual', async (req, res) => {
   try {
-    const { sessionId, owner, repo, craftMcpUrl } = req.body;
+    const { sessionId, owner, repo, craftMcpUrl, branch } = req.body;
 
     // Validate inputs
     if (!sessionId || !owner || !repo || !craftMcpUrl) {
@@ -188,14 +188,17 @@ router.post('/manual', async (req, res) => {
       craftMcpUrl
     );
 
-    // Check for updates
-    const result = await updater.checkForUpdates(owner, repo);
+    // Check for updates (both PRs and commits)
+    const result = await updater.checkForUpdates(owner, repo, branch || 'main');
 
     res.json({
       success: true,
-      message: `Processed ${result.processed} new PRs`,
+      message: `Processed ${result.prCount} PRs and ${result.commitCount} commits`,
       processed: result.processed,
-      prs: result.prs
+      prs: result.prs,
+      commits: result.commits,
+      prCount: result.prCount,
+      commitCount: result.commitCount
     });
   } catch (error) {
     console.error('Sync error:', error);

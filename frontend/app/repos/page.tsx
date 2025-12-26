@@ -398,44 +398,7 @@ function ReposContent() {
           )}
         </div>
 
-        {/* Help Section */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-800/50 p-6"
-        >
-          <h3 className="text-lg font-bold text-white mb-3">How Auto-Sync Works</h3>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span>🔍</span>
-              </div>
-              <div>
-                <p className="text-white font-medium text-sm mb-1">Continuous Monitoring</p>
-                <p className="text-slate-400 text-xs">Checks for new PRs every 5 minutes</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span>🤖</span>
-              </div>
-              <div>
-                <p className="text-white font-medium text-sm mb-1">AI Analysis</p>
-                <p className="text-slate-400 text-xs">Analyzes changes with full context</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span>📝</span>
-              </div>
-              <div>
-                <p className="text-white font-medium text-sm mb-1">Auto-Update Docs</p>
-                <p className="text-slate-400 text-xs">Updates Craft documentation automatically</p>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+
       </main>
     </div>
   );

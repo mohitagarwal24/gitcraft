@@ -139,24 +139,24 @@ function DashboardContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
-      <motion.header 
+      <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="border-b border-slate-800/50 bg-slate-900/30 backdrop-blur-xl sticky top-0 z-50"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="flex items-center space-x-2"
-            >
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <a href="/" className="flex items-center space-x-2 cursor-pointer">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20"
+              >
                 <span className="text-xl">🧠</span>
-              </div>
+              </motion.div>
               <div>
                 <h1 className="text-base font-bold text-white">GitCraft</h1>
               </div>
-            </motion.div>
+            </a>
             <div className="flex items-center gap-2">
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -190,7 +190,7 @@ function DashboardContent() {
               className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 backdrop-blur-xl border border-green-500/20 rounded-3xl p-6 mb-8"
             >
               <div className="flex items-start gap-4">
-                <motion.div 
+                <motion.div
                   animate={{ scale: [1, 1.1, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
                   className="w-14 h-14 bg-green-500/20 rounded-2xl flex items-center justify-center shrink-0"
@@ -228,7 +228,7 @@ function DashboardContent() {
           <div className="lg:col-span-2 space-y-6">
             {/* Stats */}
             {repo && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="grid sm:grid-cols-3 gap-4"
@@ -239,64 +239,13 @@ function DashboardContent() {
               </motion.div>
             )}
 
-            {/* Documentation */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-slate-900/50 backdrop-blur-xl rounded-3xl border border-slate-800/50 overflow-hidden"
-            >
-              <div className="p-5 border-b border-slate-800/50 bg-gradient-to-r from-blue-500/10 to-cyan-500/10">
-                <h3 className="text-lg font-bold text-white">Generated Documentation</h3>
-              </div>
-              <div className="p-5 space-y-3">
-                {[
-                  { emoji: '📘', title: 'Technical Specification', description: 'Overview, architecture, modules', delay: 0 },
-                  { emoji: '🧾', title: 'Release Notes', description: 'Version history', delay: 0.1 },
-                  { emoji: '📐', title: 'ADRs', description: 'Architectural decisions', delay: 0.2 },
-                  { emoji: '📌', title: 'Engineering Tasks', description: 'Open questions', delay: 0.3 },
-                  { emoji: '📁', title: '_doc_history', description: 'Change log', delay: 0.4 },
-                ].map((doc, index) => (
-                  <DocItem key={index} {...doc} />
-                ))}
-              </div>
-            </motion.div>
 
-            {/* Auto Updates */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-slate-900/50 backdrop-blur-xl rounded-3xl border border-slate-800/50 p-6"
-            >
-              <h3 className="text-lg font-bold text-white mb-3">⚡ Automatic Updates</h3>
-              <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-                Documentation updates automatically when you merge PRs
-              </p>
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4">
-                <ul className="text-sm text-blue-200 space-y-2">
-                  {[
-                    'PR merged → AI analyzes',
-                    'Docs updated in Craft',
-                    'Snapshot saved'
-                  ].map((item, index) => (
-                    <motion.li
-                      key={index}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 + index * 0.1 }}
-                      className="flex items-center gap-2"
-                    >
-                      <span className="text-green-400">✓</span> {item}
-                    </motion.li>
-                  ))}
-                </ul>
-              </div>
-            </motion.div>
+
+
 
             {/* Manual Sync */}
             {repo && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
@@ -337,7 +286,7 @@ function DashboardContent() {
 
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
@@ -373,19 +322,17 @@ function DashboardContent() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 + index * 0.1 }}
                         whileHover={{ scale: 1.02 }}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                          connRepo.repo === repo 
-                            ? 'bg-blue-500/10 border-blue-500/50' 
-                            : 'bg-slate-800/30 border-slate-800/50 hover:border-slate-700/50'
-                        }`}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${connRepo.repo === repo
+                          ? 'bg-blue-500/10 border-blue-500/50'
+                          : 'bg-slate-800/30 border-slate-800/50 hover:border-slate-700/50'
+                          }`}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <p className="text-white text-sm font-semibold truncate flex-1">{connRepo.repo}</p>
-                          <span className={`px-2 py-1 text-xs rounded-lg font-semibold ${
-                            connRepo.repo === repo 
-                              ? 'bg-blue-500 text-white' 
-                              : 'bg-green-500/20 text-green-400'
-                          }`}>
+                          <span className={`px-2 py-1 text-xs rounded-lg font-semibold ${connRepo.repo === repo
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-green-500/20 text-green-400'
+                            }`}>
                             {connRepo.repo === repo ? 'Active' : `${connRepo.confidence}%`}
                           </span>
                         </div>
@@ -405,7 +352,7 @@ function DashboardContent() {
 
 function InfoCard({ title, value, icon, delay }: { title: string; value: string; icon: string; delay: number }) {
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
@@ -423,7 +370,7 @@ function InfoCard({ title, value, icon, delay }: { title: string; value: string;
 
 function DocItem({ emoji, title, description, delay }: { emoji: string; title: string; description: string; delay: number }) {
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.3 + delay }}

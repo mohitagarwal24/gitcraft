@@ -129,6 +129,37 @@ class GitHubIntegration {
   }
 
   /**
+   * List recent commits on a branch
+   */
+  async listRecentCommits(owner, repo, branch = 'main', since = null) {
+    try {
+      const params = {
+        owner,
+        repo,
+        sha: branch,
+        per_page: 30
+      };
+
+      if (since) {
+        params.since = new Date(since).toISOString();
+      }
+
+      const { data } = await this.octokit.repos.listCommits(params);
+
+      return data.map(commit => ({
+        sha: commit.sha,
+        message: commit.commit.message,
+        author: commit.commit.author?.name || commit.author?.login || 'unknown',
+        date: commit.commit.author?.date,
+        url: commit.html_url
+      }));
+    } catch (error) {
+      console.error('Error listing commits:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get pull requests
    */
   async listPullRequests(owner, repo, state = 'closed', since = null) {

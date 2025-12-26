@@ -18,7 +18,7 @@ function HomeContent() {
     if (errorParam) {
       setError(decodeURIComponent(errorParam));
     }
-    
+
     // Check if user has a session
     const session = localStorage.getItem('gitcraft-session');
     if (session) {
@@ -57,16 +57,17 @@ function HomeContent() {
       </div>
 
       {/* Header */}
-      <motion.header 
+      <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="relative border-b border-slate-800/50 bg-slate-900/30 backdrop-blur-xl sticky top-0 z-50"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <motion.div 
+            <motion.a
+              href="/"
               whileHover={{ scale: 1.05 }}
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 cursor-pointer"
             >
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
                 <span className="text-xl">🧠</span>
@@ -74,7 +75,7 @@ function HomeContent() {
               <div>
                 <h1 className="text-base font-bold text-white">GitCraft</h1>
               </div>
-            </motion.div>
+            </motion.a>
             <div className="flex items-center gap-2">
               {hasSession && (
                 <motion.a
@@ -109,13 +110,13 @@ function HomeContent() {
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center">
           {/* Badge */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
             className="inline-flex items-center gap-2 mb-8 px-4 py-2 bg-slate-800/50 backdrop-blur-sm rounded-full border border-slate-700/50"
           >
-            <motion.span 
+            <motion.span
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
               className="relative flex h-2 w-2"
@@ -125,8 +126,8 @@ function HomeContent() {
             </motion.span>
             <span className="text-slate-300 text-sm font-medium">Craft Winter Challenge 2025</span>
           </motion.div>
-          
-          <motion.h2 
+
+          <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -139,19 +140,19 @@ function HomeContent() {
             <br />
             <span className="text-white">documentation</span>
           </motion.h2>
-          
-          <motion.p 
+
+          <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="text-xl text-slate-400 mb-12 max-w-2xl mx-auto leading-relaxed"
           >
-            AI-powered documentation that analyzes your codebase and creates 
+            AI-powered documentation that analyzes your codebase and creates
             self-updating Engineering Brain in Craft
           </motion.p>
 
           {error && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="mb-8 max-w-xl mx-auto p-4 bg-red-500/10 border border-red-500/20 rounded-2xl backdrop-blur-sm"
@@ -175,7 +176,7 @@ function HomeContent() {
             Connect GitHub
           </motion.button>
 
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
@@ -186,7 +187,7 @@ function HomeContent() {
         </div>
 
         {/* Demo Preview */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
@@ -203,7 +204,7 @@ function HomeContent() {
               <span className="ml-4 text-slate-500 text-sm font-mono">your-project-docs</span>
             </div>
             <div className="font-mono text-sm text-slate-400 space-y-2 leading-relaxed">
-              <motion.p 
+              <motion.p
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.7 }}
@@ -223,64 +224,13 @@ function HomeContent() {
           </div>
         </motion.div>
 
-        {/* Features Grid */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mt-24 grid md:grid-cols-3 gap-6"
-        >
-          {[
-            { icon: '⚡', title: 'Instant Analysis', description: 'AI analyzes codebase in seconds', delay: 0 },
-            { icon: '🔄', title: 'Auto-Updates', description: 'Updates with every PR merge', delay: 0.1 },
-            { icon: '🧠', title: 'Smart Structure', description: 'Organized specs, ADRs, tasks', delay: 0.2 },
-            { icon: '🤖', title: 'AI-Powered', description: 'Infers architecture patterns', delay: 0.3 },
-            { icon: '📊', title: 'Confidence Scores', description: 'Know what\'s certain vs inferred', delay: 0.4 },
-            { icon: '✨', title: 'Craft Native', description: 'Beautiful docs in workspace', delay: 0.5 },
-          ].map((feature, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1 + feature.delay }}
-              whileHover={{ y: -5, scale: 1.02 }}
-              className="bg-slate-900/30 backdrop-blur-sm rounded-2xl p-6 border border-slate-800/50 hover:border-blue-500/50 transition-all group"
-            >
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl flex items-center justify-center mb-4 text-2xl group-hover:scale-110 transition-transform">
-                {feature.icon}
-              </div>
-              <h4 className="text-base font-semibold text-white mb-2 group-hover:text-blue-400 transition-colors">{feature.title}</h4>
-              <p className="text-sm text-slate-400 leading-relaxed">{feature.description}</p>
-            </motion.div>
-          ))}
-        </motion.div>
 
-        {/* CTA */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 1.5 }}
-          className="mt-24 text-center bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-xl rounded-3xl p-12 border border-slate-800/50"
-        >
-          <h3 className="text-3xl font-bold text-white mb-3">
-            Transform your documentation
-          </h3>
-          <p className="text-slate-400 mb-8">
-            Engineering documentation that stays current
-          </p>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleConnect}
-            className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-base font-semibold rounded-2xl hover:from-blue-600 hover:to-cyan-600 transition-all shadow-2xl shadow-blue-500/25"
-          >
-            Get Started →
-          </motion.button>
-        </motion.div>
+
+
       </div>
 
       {/* Footer */}
-      <motion.footer 
+      <motion.footer
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.8 }}

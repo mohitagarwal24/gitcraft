@@ -122,7 +122,19 @@ async function startServer() {
 
     // Start continuous sync service
     logger.info('Starting continuous sync service...');
-    syncService = new ContinuousSyncService(repoStore.repos);
+
+    // Build config map from repoStore for sync service
+    const repoConfigs = new Map();
+    for (const [repoFullName, config] of repoStore.repos.entries()) {
+      if (config.githubToken && config.craftMcpUrl) {
+        repoConfigs.set(repoFullName, {
+          githubToken: config.githubToken,
+          craftMcpUrl: config.craftMcpUrl
+        });
+      }
+    }
+
+    syncService = new ContinuousSyncService(repoConfigs);
     app.locals.syncService = syncService;
     syncService.start();
 
