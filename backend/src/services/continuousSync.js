@@ -1,13 +1,16 @@
 import DocumentationUpdater from '../agents/updater.js';
+import CraftAdvancedIntegration from '../integrations/craft-advanced.js';
 
 /**
  * Continuous Sync Service
  * Monitors connected repositories and automatically syncs documentation
  * when changes are detected (PR merges, commits, etc.)
+ * Also verifies Craft documents still exist and cleans up stale connections.
  */
 class ContinuousSyncService {
-  constructor(repoConfigStore) {
+  constructor(repoConfigStore, repoStore = null) {
     this.repoConfigStore = repoConfigStore; // Map of repoFullName -> config
+    this.repoStore = repoStore; // RepositoryStore for database cleanup
     this.syncInterval = 5 * 60 * 1000; // 5 minutes
     this.isRunning = false;
     this.intervalId = null;
@@ -100,6 +103,30 @@ class ContinuousSyncService {
         }
 
         console.log(`\n📦 Syncing: ${repoFullName}`);
+
+        // Verify Craft document still exists
+        if (config.craftMcpUrl) {
+          try {
+            const craft = new CraftAdvancedIntegration(config.craftMcpUrl);
+            const docCheck = await craft.documentExists(repoFullName);
+
+            if (!docCheck.exists) {
+              console.log(`  🗑️  Craft document deleted - removing connection for ${repoFullName}`);
+              this.repoConfigStore.delete(repoFullName);
+              this.lastSyncTimes.delete(repoFullName);
+
+              // Also remove from database if repoStore is available
+              if (this.repoStore) {
+                await this.repoStore.delete(repoFullName);
+              }
+
+              continue;
+            }
+          } catch (craftErr) {
+            console.warn(`  ⚠️  Could not verify Craft doc: ${craftErr.message}`);
+            // Continue with sync attempt if verification fails
+          }
+        }
 
         const [owner, repo] = repoFullName.split('/');
 

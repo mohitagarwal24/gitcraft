@@ -134,7 +134,7 @@ async function startServer() {
       }
     }
 
-    syncService = new ContinuousSyncService(repoConfigs);
+    syncService = new ContinuousSyncService(repoConfigs, repoStore);
     app.locals.syncService = syncService;
     syncService.start();
 

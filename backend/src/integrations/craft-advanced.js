@@ -771,6 +771,39 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
 
   /**
+   * Delete a document from Craft
+   * @throws Error if deletion fails
+   */
+  async deleteDocument(repoName) {
+    const cleanRepoName = repoName.replace('/', '-');
+    const docTitle = `${cleanRepoName}-docs`;
+
+    await this.initialize();
+
+    // First find the document
+    const existenceCheck = await this.documentExists(repoName);
+
+    if (!existenceCheck.exists) {
+      console.log(`📄 Document "${docTitle}" does not exist - nothing to delete`);
+      return { deleted: false, reason: 'Document not found' };
+    }
+
+    console.log(`🗑️  Deleting document "${docTitle}" (ID: ${existenceCheck.documentId})...`);
+
+    try {
+      await this.callTool('documents_delete', {
+        documentIds: [existenceCheck.documentId]
+      });
+
+      console.log(`✅ Document "${docTitle}" deleted successfully`);
+      return { deleted: true, documentId: existenceCheck.documentId };
+    } catch (error) {
+      console.error(`❌ Failed to delete document: ${error.message}`);
+      throw new Error(`Failed to delete Craft document: ${error.message}`);
+    }
+  }
+
+  /**
    * List documents
    */
   async listDocuments() {

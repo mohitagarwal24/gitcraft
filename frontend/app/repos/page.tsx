@@ -84,31 +84,38 @@ function ReposContent() {
     if (!sessionId) return;
 
     const confirmed = window.confirm(
-      `Are you sure you want to disconnect "${repoFullName}"?\n\nThis will:\n- Remove it from continuous sync\n- Stop automatic updates\n\n(Your Craft document will remain)`
+      `Are you sure you want to disconnect "${repoFullName}"?\n\nThis will:\n- Remove it from continuous sync\n- Stop automatic updates`
     );
 
     if (!confirmed) return;
+
+    // Ask if they want to delete the Craft document too
+    const deleteCraftDoc = window.confirm(
+      `Also delete the Craft document?\n\nClick "OK" to delete the document from Craft\nClick "Cancel" to keep the document`
+    );
 
     setDisconnecting(repoFullName);
 
     try {
       const response = await fetch(
-        `${API_URL}/sync/disconnect/${encodeURIComponent(repoFullName)}?sessionId=${sessionId}`,
+        `${API_URL}/sync/disconnect/${encodeURIComponent(repoFullName)}?sessionId=${sessionId}&deleteCraftDoc=${deleteCraftDoc}`,
         { method: 'DELETE' }
       );
 
       if (response.ok) {
+        const data = await response.json();
         // Remove from local state
         setRepos(repos.filter(r => r.repoFullName !== repoFullName));
 
         // Show success message
-        alert(`✅ Successfully disconnected ${repoFullName}`);
+        const craftMsg = data.craftDocDeleted ? ' and Craft document deleted' : '';
+        alert(`Successfully disconnected ${repoFullName}${craftMsg}`);
       } else {
         const error = await response.json();
-        alert(`❌ Failed to disconnect: ${error.message}`);
+        alert(`Failed to disconnect: ${error.message}`);
       }
     } catch (error: any) {
-      alert(`❌ Error: ${error.message}`);
+      alert(`Error: ${error.message}`);
     } finally {
       setDisconnecting(null);
     }

@@ -508,7 +508,7 @@ router.get('/connected', async (req, res) => {
 router.delete('/disconnect/:repoFullName', async (req, res) => {
   try {
     const { repoFullName } = req.params;
-    const { sessionId } = req.query;
+    const { sessionId, deleteCraftDoc } = req.query;
 
     if (!sessionId) {
       return res.status(400).json({ error: 'Missing sessionId' });
@@ -523,7 +523,8 @@ router.delete('/disconnect/:repoFullName', async (req, res) => {
 
     // Get repo from store
     const repoStore = req.app.locals.repoStore;
-    const repo = repoStore.get(decodeURIComponent(repoFullName));
+    const decodedRepoName = decodeURIComponent(repoFullName);
+    const repo = repoStore.get(decodedRepoName);
 
     if (!repo) {
       return res.status(404).json({ error: 'Repository not found' });
@@ -534,20 +535,36 @@ router.delete('/disconnect/:repoFullName', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to disconnect this repository' });
     }
 
+    // Optionally delete Craft document
+    let craftDeleted = false;
+    if (deleteCraftDoc === 'true' && repo.craftMcpUrl) {
+      try {
+        const CraftAdvancedIntegration = (await import('../integrations/craft-advanced.js')).default;
+        const craft = new CraftAdvancedIntegration(repo.craftMcpUrl);
+        const deleteResult = await craft.deleteDocument(decodedRepoName);
+        craftDeleted = deleteResult.deleted;
+        console.log(`📄 Craft document deletion: ${craftDeleted ? 'Success' : 'Skipped'}`);
+      } catch (craftError) {
+        console.error('Failed to delete Craft document:', craftError.message);
+        // Continue with disconnect even if Craft deletion fails
+      }
+    }
+
     // Remove from sync service
     const syncService = req.app.locals.syncService;
     if (syncService) {
-      syncService.removeRepository(decodeURIComponent(repoFullName));
+      syncService.removeRepository(decodedRepoName);
     }
 
     // Remove from store
-    await repoStore.delete(decodeURIComponent(repoFullName));
+    await repoStore.delete(decodedRepoName);
 
-    console.log(`✅ Disconnected repository: ${repoFullName}`);
+    console.log(`✅ Disconnected repository: ${repoFullName}${craftDeleted ? ' (Craft doc deleted)' : ''}`);
 
     res.json({
       success: true,
-      message: `Repository ${repoFullName} disconnected`
+      message: `Repository ${repoFullName} disconnected`,
+      craftDocDeleted: craftDeleted
     });
   } catch (error) {
     console.error('Error disconnecting repository:', error);
