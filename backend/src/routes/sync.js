@@ -419,6 +419,7 @@ router.post('/debug-mcp', async (req, res) => {
 
 /**
  * Get all connected repositories
+ * Also verifies documents still exist in Craft - removes connections for deleted docs
  */
 router.get('/connected', async (req, res) => {
   try {
@@ -437,18 +438,52 @@ router.get('/connected', async (req, res) => {
 
     // Get repos from store
     const repoStore = req.app.locals.repoStore;
+    const syncService = req.app.locals.syncService;
     const allRepos = repoStore.getAll();
 
     // Filter by user ID (not accessToken, since tokens change on re-auth)
     const userId = session.user?.id;
     const userRepos = allRepos.filter(repo => {
-      // Match by user ID (stored user object has id field)
       return repo.user?.id === userId || repo.user?.login === session.user?.login;
     });
 
+    // Verify each repo's document still exists in Craft
+    const CraftAdvancedIntegration = (await import('../integrations/craft-advanced.js')).default;
+    const verifiedRepos = [];
+
+    for (const repo of userRepos) {
+      // Only verify if we have a craftMcpUrl
+      if (repo.craftMcpUrl) {
+        try {
+          const craft = new CraftAdvancedIntegration(repo.craftMcpUrl);
+          const repoName = repo.repoFullName || repo.id;
+          const existence = await craft.documentExists(repoName);
+
+          if (existence.exists) {
+            // Document exists - keep connection
+            verifiedRepos.push(repo);
+          } else {
+            // Document deleted - remove connection
+            console.log(`📄 Document for ${repoName} no longer exists in Craft - removing connection`);
+            await repoStore.delete(repoName);
+            if (syncService && syncService.repoConfigStore) {
+              syncService.repoConfigStore.delete(repoName);
+            }
+          }
+        } catch (err) {
+          // If Craft check fails, keep the repo (don't delete on error)
+          console.warn(`⚠️  Could not verify Craft doc for ${repo.repoFullName}: ${err.message}`);
+          verifiedRepos.push(repo);
+        }
+      } else {
+        // No craftMcpUrl, keep the repo
+        verifiedRepos.push(repo);
+      }
+    }
+
     res.json({
       success: true,
-      repositories: userRepos.map(repo => ({
+      repositories: verifiedRepos.map(repo => ({
         repoFullName: repo.repoFullName || repo.id,
         documentTitle: repo.documentTitle,
         documentId: repo.documentId,
