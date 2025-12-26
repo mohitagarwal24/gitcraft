@@ -144,6 +144,7 @@ class DocumentationUpdater {
 
   /**
    * Create documentation snapshot
+   * Note: Snapshots are logged but not stored in Craft (no createSnapshot method available)
    */
   async createSnapshot(state, prNumber) {
     try {
@@ -154,19 +155,20 @@ class DocumentationUpdater {
         for (const [key, docId] of Object.entries(state.documentIds)) {
           try {
             const doc = await this.craft.getDocument(docId);
-            documents[key] = doc.contents[0].text;
+            if (doc?.contents?.[0]?.text) {
+              documents[key] = doc.contents[0].text;
+            }
           } catch (error) {
-            console.warn(`Could not snapshot ${key}:`, error.message);
+            // Document may not exist, skip silently
           }
         }
       }
 
-      // Create snapshot document
-      await this.craft.createSnapshot(state.repoName, prNumber, documents);
-      console.log(`  ✓ Snapshot created for PR #${prNumber}`);
+      // Log snapshot creation (Craft MCP doesn't have a snapshot API)
+      console.log(`  ✓ Snapshot recorded for ${prNumber || 'update'} (${Object.keys(documents).length} docs)`);
     } catch (error) {
-      console.error('Error creating snapshot:', error);
       // Don't fail the entire update if snapshot fails
+      console.warn('Snapshot skipped:', error.message);
     }
   }
 

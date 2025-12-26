@@ -145,41 +145,40 @@ class CraftAdvancedIntegration {
 
   /**
    * Check if document exists
+   * @throws Error if check fails - no assumptions, fail loudly
    */
   async documentExists(repoName) {
     const cleanRepoName = repoName.replace('/', '-');
     const docTitle = `${cleanRepoName}-docs`;
 
-    try {
-      await this.initialize();
+    await this.initialize();
 
-      // Use resources/list to get documents
-      const result = await this.mcpCall('resources/list', {});
-      const documents = result?.resources || [];
+    // Use documents_list tool to get documents
+    const result = await this.callTool('documents_list', {});
+    const documents = result?.documents || [];
 
-      console.log(`🔍 Checking for document "${docTitle}" among ${documents.length} documents`);
+    console.log(`🔍 Checking for document "${docTitle}" among ${documents.length} documents`);
 
-      const existing = documents.find(doc => {
-        const title = doc.name || doc.title || '';
-        return title.toLowerCase() === docTitle.toLowerCase();
-      });
-
-      if (existing) {
-        console.log(`📄 Document "${docTitle}" found (ID: ${existing.uri || existing.id})`);
-        return {
-          exists: true,
-          documentId: existing.uri || existing.id,
-          documentTitle: docTitle
-        };
-      }
-
-      console.log(`📄 Document "${docTitle}" does not exist`);
-      return { exists: false };
-    } catch (error) {
-      console.warn('⚠️  Could not check for existing documents:', error.message);
-      // If we can't check, assume it doesn't exist to avoid blocking
-      return { exists: false };
+    if (!Array.isArray(documents)) {
+      throw new Error(`documents_list returned invalid format: ${JSON.stringify(result)}`);
     }
+
+    const existing = documents.find(doc => {
+      const title = doc.title || doc.name || '';
+      return title.toLowerCase() === docTitle.toLowerCase();
+    });
+
+    if (existing) {
+      console.log(`📄 Document "${docTitle}" found (ID: ${existing.id})`);
+      return {
+        exists: true,
+        documentId: existing.id,
+        documentTitle: docTitle
+      };
+    }
+
+    console.log(`📄 Document "${docTitle}" does not exist`);
+    return { exists: false };
   }
 
   /**
@@ -247,11 +246,11 @@ class CraftAdvancedIntegration {
 
     // Step 5: Create ADRs Collection
     console.log(`\n📐 Creating ADRs collection...`);
-    await this.createADRCollection(documentId, analysis);
+    const adrsCollectionId = await this.createADRCollection(documentId, analysis);
 
     // Step 6: Create Engineering Tasks Collection
     console.log(`\n📌 Creating Engineering Tasks collection...`);
-    await this.createEngineeringTasksCollection(documentId, analysis);
+    const tasksCollectionId = await this.createEngineeringTasksCollection(documentId, analysis);
 
     // Step 7: Create Doc History Collection
     console.log(`\n📁 Creating Doc History collection...`);
@@ -267,8 +266,10 @@ class CraftAdvancedIntegration {
       documentTitle: docTitle,
       repoName,
       collectionIds: {
-        docHistory: docHistoryCollectionId,
-        releaseNotes: releaseNotesCollectionId
+        releaseNotes: releaseNotesCollectionId,
+        adrs: adrsCollectionId,
+        engineeringTasks: tasksCollectionId,
+        docHistory: docHistoryCollectionId
       }
     };
   }
@@ -511,297 +512,263 @@ The automated analysis could not identify public APIs in this codebase. This cou
    * Create Release Notes as a collection
    */
   async createReleaseNotesCollection(parentId, analysis) {
-    try {
-      console.log('  Creating release_notes collection...');
+    console.log('  Creating release_notes collection...');
 
-      const date = new Date().toISOString().split('T')[0];
-      const confidence = Math.round((analysis.confidence || 0) * 100);
-      const modules = analysis.coreModules || [];
-      const techStack = Object.values(analysis.technicalStack || {}).flat();
-
-      // Create collection
-      const collectionResult = await this.callTool('collections_create', {
-        collections: [{
-          name: 'release_notes',
-          location: { pageId: parentId }
-        }]
-      });
-
-      const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
-
-      if (!collectionId) {
-        console.warn('  ⚠️  Could not create collection, falling back to markdown');
-        await this.createReleaseNotesCollectionFallback(parentId, analysis);
-        return null;
-      }
-
-      console.log(`  ✓ Collection created (ID: ${collectionId})`);
-
-      // Define schema
-      await this.callTool('collectionSchema_update', {
-        collectionId,
-        schema: {
-          properties: [
-            { name: 'version', type: 'text' },
-            { name: 'date', type: 'date' },
-            { name: 'title', type: 'text' },
-            { name: 'summary', type: 'text' },
-            { name: 'pr_number', type: 'number' },
-            { name: 'changes', type: 'text' }
-          ]
-        }
-      });
-
-      // Add initial release
-      const initialChanges = `Initial AI-powered analysis completed.
-- 📦 ${modules.length} core modules identified
-- 🛠️ ${techStack.length} technologies detected
-- 📊 ${confidence}% analysis confidence`;
-
-      await this.callTool('collectionItems_add', {
-        collectionId,
-        items: [{
-          version: 'v0.1.0',
-          date: date,
-          title: 'Initial Analysis',
-          summary: 'Repository connected to GitCraft and baseline documentation established',
-          pr_number: null,
-          changes: initialChanges
-        }]
-      });
-
-      console.log('  ✓ Initial release note added');
-      return collectionId;
-    } catch (error) {
-      console.error('  ✗ Failed to create collection:', error.message);
-      console.log('  → Falling back to markdown section');
-      await this.createReleaseNotesCollectionFallback(parentId, analysis);
-      return null;
-    }
-  }
-
-  /**
-   * Fallback: Create release notes as markdown section
-   */
-  async createReleaseNotesCollectionFallback(parentId, analysis) {
     const date = new Date().toISOString().split('T')[0];
     const confidence = Math.round((analysis.confidence || 0) * 100);
     const modules = analysis.coreModules || [];
     const techStack = Object.values(analysis.technicalStack || {}).flat();
 
-    const content = `## 🧾 Release Notes
+    // Create collection
+    const collectionResult = await this.callTool('collections_create', {
+      collections: [{
+        name: 'release_notes',
+        location: { pageId: parentId }
+      }]
+    });
 
-### v0.1.0 – Initial Analysis (${date})
+    const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
 
-**Summary:**
-Initial AI-powered analysis of the codebase has been completed.
+    if (!collectionId) {
+      throw new Error('Failed to create Release Notes collection - no collection ID returned');
+    }
 
-**Analysis Results:**
+    console.log(`  ✓ Release Notes collection created (ID: ${collectionId})`);
+
+    // Define schema
+    await this.callTool('collectionSchema_update', {
+      collectionId,
+      schema: {
+        properties: [
+          { name: 'version', type: 'text' },
+          { name: 'date', type: 'date' },
+          { name: 'title', type: 'text' },
+          { name: 'summary', type: 'text' },
+          { name: 'pr_number', type: 'number' },
+          { name: 'changes', type: 'text' }
+        ]
+      }
+    });
+
+    // Add initial release
+    const initialChanges = `Initial AI-powered analysis completed.
 - 📦 ${modules.length} core modules identified
 - 🛠️ ${techStack.length} technologies detected
-- 📊 ${confidence}% analysis confidence
+- 📊 ${confidence}% analysis confidence`;
 
----
+    await this.callTool('collectionItems_add', {
+      collectionId,
+      items: [{
+        version: 'v0.1.0',
+        date: date,
+        title: 'Initial Analysis',
+        summary: 'Repository connected to GitCraft and baseline documentation established',
+        pr_number: null,
+        changes: initialChanges
+      }]
+    });
 
-*Release notes will be automatically updated when PRs are merged.*
-
-`;
-
-    await this.addContent(parentId, content);
+    console.log('  ✓ Initial release note added');
+    return collectionId;
   }
 
+
+
   /**
-   * Create ADRs collection
+   * Create ADRs as a collection
    */
   async createADRCollection(parentId, analysis) {
+    console.log('  Creating adrs collection...');
+
     const date = new Date().toISOString().split('T')[0];
     const adr = analysis.initialADR || {};
 
-    const content = `## 📐 Architectural Decision Records (ADRs)
+    // Create collection
+    const collectionResult = await this.callTool('collections_create', {
+      collections: [{
+        name: 'adrs',
+        location: { pageId: parentId }
+      }]
+    });
 
-### ADR-001: ${adr.title || 'Initial Architecture'}
+    const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
 
-| Field | Value |
-|-------|-------|
-| **Status** | Proposed (AI-Inferred) |
-| **Date** | ${date} |
-| **Author** | GitCraft AI |
-| **Confidence** | ${Math.round((analysis.architecture?.confidence || 0.5) * 100)}% |
+    if (!collectionId) {
+      throw new Error('Failed to create ADRs collection - no collection ID returned');
+    }
 
-#### Context
+    console.log(`  ✓ ADRs collection created (ID: ${collectionId})`);
 
-${adr.context || 'The initial architecture has been analyzed from the codebase structure.'}
+    // Define schema
+    await this.callTool('collectionSchema_update', {
+      collectionId,
+      schema: {
+        properties: [
+          { name: 'adr_id', type: 'text' },
+          { name: 'title', type: 'text' },
+          { name: 'status', type: 'text' },
+          { name: 'date', type: 'date' },
+          { name: 'context', type: 'text' },
+          { name: 'decision', type: 'text' },
+          { name: 'consequences', type: 'text' },
+          { name: 'confidence', type: 'number' }
+        ]
+      }
+    });
 
-${analysis.architecture?.description || ''}
+    // Add initial ADR entry
+    await this.callTool('collectionItems_add', {
+      collectionId,
+      items: [{
+        adr_id: 'ADR-001',
+        title: adr.title || 'Initial Architecture',
+        status: 'Proposed (AI-Inferred)',
+        date: new Date().toISOString(),
+        context: adr.context || 'Initial architecture analyzed from codebase structure.',
+        decision: adr.decision || `System follows ${analysis.architecture?.pattern || 'Unknown'} architecture pattern.`,
+        consequences: JSON.stringify(adr.consequences || { positive: [], negative: [], risks: [] }),
+        confidence: Math.round((analysis.architecture?.confidence || 0.5) * 100)
+      }]
+    });
 
-#### Decision
-
-${adr.decision || `The system follows a **${analysis.architecture?.pattern || 'Unknown'}** architecture pattern.`}
-
-**Frameworks & Technologies:**
-${(analysis.architecture?.frameworks || []).map(f => `- ${f}`).join('\n') || '- Being identified'}
-
-#### Consequences
-
-**Positive:**
-${(adr.consequences?.positive || []).map(item => `- ✅ ${item}`).join('\n') || '- Automated baseline documentation'}
-
-**Negative:**
-${(adr.consequences?.negative || []).map(item => `- ⚠️ ${item}`).join('\n') || '- May require manual refinement'}
-
-**Risks:**
-${(adr.consequences?.risks || []).map(item => `- 🔴 ${item}`).join('\n') || '- None identified'}
-
----
-
-*ADRs will be automatically created for significant architectural changes in merged PRs.*
-
-`;
-
-    await this.addContent(parentId, content);
+    console.log('  ✓ Initial ADR entry added');
+    return collectionId;
   }
 
   /**
-   * Create Engineering Tasks collection
+   * Create Engineering Tasks as a collection
    */
   async createEngineeringTasksCollection(parentId, analysis) {
+    console.log('  Creating engineering_tasks collection...');
+
     const tasks = analysis.engineeringTasks || [];
     const openQuestions = analysis.openQuestions || [];
 
-    const content = `## 📌 Engineering Tasks
+    // Create collection
+    const collectionResult = await this.callTool('collections_create', {
+      collections: [{
+        name: 'engineering_tasks',
+        location: { pageId: parentId }
+      }]
+    });
 
-### 🔴 High Priority
+    const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
 
-${tasks.filter(t => t.priority === 'High').map((task, idx) => `
-#### ${idx + 1}. ${task.task}
+    if (!collectionId) {
+      throw new Error('Failed to create Engineering Tasks collection - no collection ID returned');
+    }
 
-**Category:** ${task.category}
+    console.log(`  ✓ Engineering Tasks collection created (ID: ${collectionId})`);
 
-**Reasoning:** ${task.reasoning}
-
-- [ ] Start task
-- [ ] Complete task
-- [ ] Review changes
-`).join('\n') || '- [ ] Review AI-generated documentation\n- [ ] Validate architecture analysis'}
-
-### 🟡 Medium Priority
-
-${tasks.filter(t => t.priority === 'Medium').map((task, idx) => `
-#### ${idx + 1}. ${task.task}
-
-**Category:** ${task.category}
-
-**Reasoning:** ${task.reasoning}
-
-- [ ] Complete task
-`).join('\n') || '- [ ] Add deployment documentation\n- [ ] Create onboarding guide'}
-
-### 🟢 Low Priority
-
-${tasks.filter(t => t.priority === 'Low').map((task, idx) => `
-#### ${idx + 1}. ${task.task}
-
-**Category:** ${task.category}
-
-**Reasoning:** ${task.reasoning}
-
-- [ ] Complete task
-`).join('\n') || '- [ ] Add code examples\n- [ ] Create video walkthroughs'}
-
-### ❓ Open Questions
-
-${openQuestions.map((q, idx) => `${idx + 1}. ${q}`).join('\n') || 'No open questions at this time.'}
-
----
-
-*Engineering tasks will be automatically updated based on merged PRs and code changes.*
-
-`;
-
-    await this.addContent(parentId, content);
-  }
-
-  /**
-   * Create Doc History collection (using actual collections)
-   */
-  async createDocHistoryCollection(parentId) {
-    try {
-      console.log('  Creating doc_history collection...');
-
-      // Create collection
-      const collectionResult = await this.callTool('collections_create', {
-        collections: [{
-          name: 'doc_history',
-          location: { pageId: parentId }
-        }]
-      });
-
-      const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
-
-      if (!collectionId) {
-        console.warn('  ⚠️  Could not create collection, falling back to markdown');
-        await this.createDocHistoryCollectionFallback(parentId);
-        return null;
+    // Define schema
+    await this.callTool('collectionSchema_update', {
+      collectionId,
+      schema: {
+        properties: [
+          { name: 'task', type: 'text' },
+          { name: 'priority', type: 'text' },
+          { name: 'category', type: 'text' },
+          { name: 'reasoning', type: 'text' },
+          { name: 'status', type: 'text' },
+          { name: 'created_at', type: 'date' }
+        ]
       }
+    });
 
-      console.log(`  ✓ Collection created (ID: ${collectionId})`);
+    // Add default tasks if none from analysis
+    const tasksToAdd = tasks.length > 0 ? tasks : [
+      { task: 'Review AI-generated documentation', priority: 'High', category: 'Documentation', reasoning: 'Validate accuracy of auto-generated content' },
+      { task: 'Validate architecture analysis', priority: 'High', category: 'Architecture', reasoning: 'Ensure system structure is correctly identified' },
+      { task: 'Add deployment documentation', priority: 'Medium', category: 'DevOps', reasoning: 'Help new developers set up the project' }
+    ];
 
-      // Define schema
-      await this.callTool('collectionSchema_update', {
-        collectionId,
-        schema: {
-          properties: [
-            { name: 'date', type: 'date' },
-            { name: 'event', type: 'text' },
-            { name: 'description', type: 'text' },
-            { name: 'pr_number', type: 'number' },
-            { name: 'confidence', type: 'text' }
-          ]
-        }
-      });
+    // Add task entries
+    await this.callTool('collectionItems_add', {
+      collectionId,
+      items: tasksToAdd.map(task => ({
+        task: task.task,
+        priority: task.priority || 'Medium',
+        category: task.category || 'General',
+        reasoning: task.reasoning || '',
+        status: 'Todo',
+        created_at: new Date().toISOString()
+      }))
+    });
 
-      // Add initial entry
+    console.log(`  ✓ ${tasksToAdd.length} task entries added`);
+
+    // Add open questions as separate tasks
+    if (openQuestions.length > 0) {
       await this.callTool('collectionItems_add', {
         collectionId,
-        items: [{
-          date: new Date().toISOString(),
-          event: 'Initial Creation',
-          description: 'Engineering Brain created by GitCraft AI',
-          pr_number: null,
-          confidence: 'N/A'
-        }]
+        items: openQuestions.map(q => ({
+          task: q,
+          priority: 'Medium',
+          category: 'Open Question',
+          reasoning: 'Needs clarification',
+          status: 'Todo',
+          created_at: new Date().toISOString()
+        }))
       });
-
-      console.log('  ✓ Initial history entry added');
-      return collectionId;
-    } catch (error) {
-      console.error('  ✗ Failed to create collection:', error.message);
-      console.log('  → Falling back to markdown section');
-      await this.createDocHistoryCollectionFallback(parentId);
-      return null;
+      console.log(`  ✓ ${openQuestions.length} open questions added`);
     }
+
+    return collectionId;
   }
 
   /**
-   * Fallback: Create doc history as markdown section
+   * Create Doc History collection
    */
-  async createDocHistoryCollectionFallback(parentId) {
-    const date = new Date().toISOString();
-    const content = `## 📁 Documentation History
+  async createDocHistoryCollection(parentId) {
+    console.log('  Creating doc_history collection...');
 
-### Change Log
+    // Create collection
+    const collectionResult = await this.callTool('collections_create', {
+      collections: [{
+        name: 'doc_history',
+        location: { pageId: parentId }
+      }]
+    });
 
-| Date | Event | Description | Confidence |
-|------|-------|-------------|------------|
-| ${date} | Initial Creation | Engineering Brain created by GitCraft AI | N/A |
+    const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
 
----
+    if (!collectionId) {
+      throw new Error('Failed to create Doc History collection - no collection ID returned');
+    }
 
-*This section is automatically maintained by GitCraft.*
+    console.log(`  ✓ Doc History collection created (ID: ${collectionId})`);
 
-`;
-    await this.addContent(parentId, content);
+    // Define schema
+    await this.callTool('collectionSchema_update', {
+      collectionId,
+      schema: {
+        properties: [
+          { name: 'date', type: 'date' },
+          { name: 'event', type: 'text' },
+          { name: 'description', type: 'text' },
+          { name: 'pr_number', type: 'number' },
+          { name: 'confidence', type: 'text' }
+        ]
+      }
+    });
+
+    // Add initial entry
+    await this.callTool('collectionItems_add', {
+      collectionId,
+      items: [{
+        date: new Date().toISOString(),
+        event: 'Initial Creation',
+        description: 'Engineering Brain created by GitCraft AI',
+        pr_number: null,
+        confidence: 'N/A'
+      }]
+    });
+
+    console.log('  ✓ Initial history entry added');
+    return collectionId;
   }
+
+
 
   /**
    * List documents

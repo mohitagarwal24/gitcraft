@@ -63,7 +63,7 @@ function ConnectContent() {
           repo: r.repoFullName,
           documentTitle: r.documentTitle,
           connectedAt: r.connectedAt,
-          confidence: 0 // We don't have this from the endpoint
+          confidence: Math.round((r.confidence || 0) * 100) // Convert to percentage
         })));
 
         // Load stats for each connected repo

@@ -125,7 +125,8 @@ router.post('/analyze', async (req, res) => {
       documentId: result.craftDocument?.documentId,
       documentTitle: result.craftDocument?.documentTitle,
       sessionId,
-      user: session.user
+      user: session.user,
+      confidence: result.analysis?.confidence || 0
     });
 
     // Add to continuous sync if service is running
@@ -488,7 +489,8 @@ router.get('/connected', async (req, res) => {
         documentTitle: repo.documentTitle,
         documentId: repo.documentId,
         connectedAt: repo.connectedAt,
-        lastUpdated: repo.lastUpdated
+        lastUpdated: repo.lastUpdated,
+        confidence: repo.confidence || 0
       }))
     });
   } catch (error) {
