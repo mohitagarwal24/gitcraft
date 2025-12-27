@@ -137,7 +137,9 @@ class ContinuousSyncService {
           if (repoData) {
             syncState = {
               lastSyncedAt: repoData.lastSyncedAt,
-              lastProcessedPR: repoData.lastProcessedPR
+              lastProcessedPR: repoData.lastProcessedPR,
+              documentId: repoData.documentId,
+              collectionIds: repoData.collectionIds
             };
           }
         }

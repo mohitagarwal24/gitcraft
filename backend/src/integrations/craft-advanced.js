@@ -906,6 +906,147 @@ The automated analysis could not identify public APIs in this codebase. This cou
       return false;
     }
   }
+
+  // ============================================================
+  // COLLECTION UPDATE METHODS - For PR/Commit Updates
+  // ============================================================
+
+  /**
+   * Add a release note entry to existing collection
+   */
+  async addReleaseNote(collectionBlockId, data) {
+    await this.initialize();
+    const { version, title, summary, prNumber, changes } = data;
+
+    try {
+      await this.callTool('collectionItems_add', {
+        collectionBlockId,
+        items: [{
+          title: title || `Release ${version}`,
+          properties: {
+            version: version,
+            date: new Date().toISOString().split('T')[0],
+            summary: summary,
+            pr_number: prNumber || 0,
+            changes: changes || ''
+          }
+        }]
+      });
+      console.log(`  ✓ Added release note: ${title}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to add release note:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Add an ADR entry to existing collection
+   */
+  async addADREntry(collectionBlockId, data) {
+    await this.initialize();
+    const { adrId, title, status, context, decision, consequences, confidence } = data;
+
+    try {
+      await this.callTool('collectionItems_add', {
+        collectionBlockId,
+        items: [{
+          title: title,
+          properties: {
+            adr_id: adrId,
+            status: status || 'Proposed',
+            date: new Date().toISOString().split('T')[0],
+            context: context,
+            decision: decision,
+            consequences: typeof consequences === 'string' ? consequences : JSON.stringify(consequences),
+            confidence: confidence || 0
+          }
+        }]
+      });
+      console.log(`  ✓ Added ADR: ${title}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to add ADR:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Add tasks to existing engineering tasks collection
+   */
+  async addTasks(collectionBlockId, tasks) {
+    await this.initialize();
+
+    try {
+      await this.callTool('collectionItems_add', {
+        collectionBlockId,
+        items: tasks.map(task => ({
+          title: task.task || task.title,
+          properties: {
+            priority: task.priority || 'Medium',
+            category: task.category || 'General',
+            reasoning: task.reasoning || '',
+            status: task.status || 'Todo',
+            created_at: new Date().toISOString().split('T')[0]
+          }
+        }))
+      });
+      console.log(`  ✓ Added ${tasks.length} task(s)`);
+      return true;
+    } catch (error) {
+      console.error('Failed to add tasks:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Add doc history entry to existing collection
+   */
+  async addDocHistoryEntry(collectionBlockId, data) {
+    await this.initialize();
+    const { event, description, prNumber, confidence } = data;
+
+    try {
+      await this.callTool('collectionItems_add', {
+        collectionBlockId,
+        items: [{
+          title: event,
+          properties: {
+            date: new Date().toISOString().split('T')[0],
+            description: description,
+            pr_number: prNumber || 0,
+            confidence: confidence || 'N/A'
+          }
+        }]
+      });
+      console.log(`  ✓ Added doc history: ${event}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to add doc history:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Update main document content (for major changes like tech stack)
+   */
+  async updateMainDocumentContent(documentId, newContent) {
+    await this.initialize();
+
+    try {
+      // Add new content block
+      await this.callTool('markdown_add', {
+        pageId: documentId,
+        markdown: newContent,
+        position: 'end'
+      });
+      console.log('  ✓ Main document updated');
+      return true;
+    } catch (error) {
+      console.error('Failed to update main document:', error.message);
+      return false;
+    }
+  }
 }
 
 export default CraftAdvancedIntegration;

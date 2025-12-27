@@ -124,6 +124,7 @@ router.post('/analyze', async (req, res) => {
       craftMcpUrl,
       documentId: result.craftDocument?.documentId,
       documentTitle: result.craftDocument?.documentTitle,
+      collectionIds: result.craftDocument?.collectionIds,
       sessionId,
       user: session.user,
       confidence: result.analysis?.confidence || 0

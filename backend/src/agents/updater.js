@@ -1,11 +1,13 @@
 import GitHubIntegration from '../integrations/github.js';
 import CraftIntegration from '../integrations/craft.js';
+import CraftAdvancedIntegration from '../integrations/craft-advanced.js';
 import LLMIntegration from '../integrations/llm.js';
 
 class DocumentationUpdater {
   constructor(githubToken, craftMcpUrl) {
     this.github = new GitHubIntegration(githubToken);
     this.craft = new CraftIntegration(craftMcpUrl);
+    this.craftAdvanced = new CraftAdvancedIntegration(craftMcpUrl);
     this.llm = new LLMIntegration();
   }
 
@@ -52,6 +54,103 @@ class DocumentationUpdater {
       };
     } catch (error) {
       console.error('❌ Update failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process repository update from PR merge using collections API
+   * @param {Object} updateData - { owner, repo, prNumber, documentId, collectionIds }
+   */
+  async processUpdateWithCollections(updateData) {
+    const { owner, repo, prNumber, documentId, collectionIds } = updateData;
+
+    if (!collectionIds && !documentId) {
+      console.log('⚠️  No document or collection IDs provided, skipping updates');
+      return { success: false, message: 'No document or collection IDs' };
+    }
+
+    try {
+      console.log(`🔄 Processing PR#${prNumber} for ${owner}/${repo} (collections)...`);
+
+      // Step 1: Get PR details
+      console.log('📥 Fetching PR details...');
+      const prData = await this.getPRData(owner, repo, prNumber);
+
+      // Step 2: Analyze changes with LLM
+      console.log('🤖 Analyzing changes...');
+      const analysis = await this.llm.analyzePRChanges(prData);
+
+      // Step 3: Update collections based on analysis
+      console.log('📝 Updating collections...');
+
+      // Always add doc history entry for major changes
+      if (collectionIds.docHistory) {
+        await this.craftAdvanced.addDocHistoryEntry(collectionIds.docHistory, {
+          event: `PR #${prNumber} Merged: ${prData.title}`,
+          description: analysis.summary || prData.title,
+          prNumber: prNumber,
+          confidence: `${Math.round((analysis.confidence || 0.5) * 100)}%`
+        });
+      }
+
+      // Add release note only for MAJOR changes (major features, breaking changes, etc.)
+      const isMajorChange = analysis.impactLevel === 'major' ||
+        analysis.breakingChanges === true ||
+        (analysis.changeType === 'feature' && analysis.publicAPIChanges);
+
+      if (collectionIds?.releaseNotes && isMajorChange) {
+        const version = this.calculateVersion(analysis.impactLevel);
+        await this.craftAdvanced.addReleaseNote(collectionIds.releaseNotes, {
+          version,
+          title: prData.title,
+          summary: analysis.summary,
+          prNumber: prNumber,
+          changes: (analysis.documentationUpdates || []).join('; ')
+        });
+        console.log('  ✓ Release note added (major change)');
+      }
+
+      // Add ADR only if architecture change detected
+      if (collectionIds.adrs && analysis.requiresADR) {
+        const adrNumber = Date.now(); // Simple unique ID
+        await this.craftAdvanced.addADREntry(collectionIds.adrs, {
+          adrId: `ADR-${String(adrNumber).slice(-4)}`,
+          title: `PR#${prNumber}: ${analysis.keyDecisions?.[0] || prData.title}`,
+          status: 'Accepted',
+          context: analysis.technicalDetails || prData.body,
+          decision: analysis.summary,
+          consequences: {
+            positive: analysis.documentationUpdates || [],
+            negative: [],
+            risks: analysis.securityImplications !== 'None' ? [analysis.securityImplications] : []
+          },
+          confidence: Math.round((analysis.confidence || 0.5) * 100)
+        });
+      }
+
+      // Add follow-up tasks if any
+      if (collectionIds.engineeringTasks && analysis.followUpTasks?.length > 0) {
+        await this.craftAdvanced.addTasks(collectionIds.engineeringTasks,
+          analysis.followUpTasks.map(task => ({
+            task: task,
+            priority: 'Medium',
+            category: `From PR#${prNumber}`,
+            reasoning: 'Generated from PR analysis'
+          }))
+        );
+      }
+
+      console.log('✅ Collection update complete!');
+
+      return {
+        success: true,
+        prNumber,
+        analysis,
+        message: 'Collections updated successfully'
+      };
+    } catch (error) {
+      console.error('❌ Collection update failed:', error);
       throw error;
     }
   }
@@ -438,13 +537,14 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
    * @param {string} owner - Repository owner
    * @param {string} repo - Repository name
    * @param {string} branch - Branch to check
-   * @param {Object} syncState - State from database: { lastSyncedAt, lastProcessedPR }
+   * @param {Object} syncState - State from database: { lastSyncedAt, lastProcessedPR, collectionIds }
    */
   async checkForUpdates(owner, repo, branch = 'main', syncState = {}) {
     try {
       // Use passed-in state from database, fallback to Craft state for backwards compatibility
       let lastPR = syncState.lastProcessedPR;
       let lastSync = syncState.lastSyncedAt;
+      const collectionIds = syncState.collectionIds;
 
       // If no state passed, try to get from Craft (backwards compatibility)
       if (lastPR === undefined && lastSync === undefined) {
@@ -470,12 +570,24 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
 
       for (const pr of newPRs) {
         try {
-          await this.processUpdate({
-            owner,
-            repo,
-            prNumber: pr.number,
-            branch: pr.baseBranch
-          });
+          // Use collection-based updates if collectionIds are available
+          if (collectionIds) {
+            await this.processUpdateWithCollections({
+              owner,
+              repo,
+              prNumber: pr.number,
+              documentId: syncState.documentId,
+              collectionIds
+            });
+          } else {
+            // Fall back to legacy markdown-based updates
+            await this.processUpdate({
+              owner,
+              repo,
+              prNumber: pr.number,
+              branch: pr.baseBranch
+            });
+          }
           prCount++;
           processedPRs.push(pr.number);
         } catch (err) {
