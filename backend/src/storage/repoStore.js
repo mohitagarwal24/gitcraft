@@ -111,6 +111,7 @@ class RepositoryStore {
       collectionIds: config.collectionIds || null,
       lastProcessedPR: config.lastProcessedPR || null,
       lastSyncedAt: config.lastSyncedAt || null,
+      confidence: config.confidence || null,
     };
 
     // For memory store, keep all config props
@@ -137,6 +138,7 @@ class RepositoryStore {
               collectionIds: dbRecord.collectionIds,
               lastProcessedPR: dbRecord.lastProcessedPR,
               lastSyncedAt: dbRecord.lastSyncedAt,
+              confidence: dbRecord.confidence,
             },
           });
         console.log(`✅ Repository saved to database: ${repoFullName}`);

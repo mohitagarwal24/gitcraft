@@ -27,9 +27,10 @@ export const repositories = pgTable('repositories', {
     user: jsonb('user').notNull(), // {id, login, name, email}
     connectedAt: timestamp('connected_at').defaultNow().notNull(),
     lastUpdated: timestamp('last_updated').defaultNow().notNull(),
-    collectionIds: jsonb('collection_ids'), // {docHistory, releaseNotes}
+    collectionIds: jsonb('collection_ids'), // {docHistory, releaseNotes, adrs, engineeringTasks}
     lastProcessedPR: integer('last_processed_pr'), // Last PR number processed
     lastSyncedAt: timestamp('last_synced_at'), // Last successful sync timestamp
+    confidence: real('confidence'), // AI analysis confidence (0-1)
 });
 
 /**

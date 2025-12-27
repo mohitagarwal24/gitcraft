@@ -55,6 +55,11 @@ export async function createTables() {
       ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP
     `).catch(() => { }); // Ignore error if column exists
 
+    await db.execute(sql`
+      ALTER TABLE repositories 
+      ADD COLUMN IF NOT EXISTS confidence REAL
+    `).catch(() => { }); // Ignore error if column exists
+
     // Create sync_history table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS sync_history (
