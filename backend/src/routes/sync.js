@@ -443,11 +443,21 @@ router.get('/connected', async (req, res) => {
     const syncService = req.app.locals.syncService;
     const allRepos = repoStore.getAll();
 
+    console.log(`📊 Connected repos check: ${allRepos.length} total repos in store`);
+
     // Filter by user ID (not accessToken, since tokens change on re-auth)
     const userId = session.user?.id;
+    console.log(`👤 Looking for repos with userId: ${userId} or login: ${session.user?.login}`);
+
     const userRepos = allRepos.filter(repo => {
-      return repo.user?.id === userId || repo.user?.login === session.user?.login;
+      const matches = repo.user?.id === userId || repo.user?.login === session.user?.login;
+      if (!matches && allRepos.length > 0) {
+        console.log(`  ❌ Repo ${repo.repoFullName || repo.id} has user.id=${repo.user?.id} user.login=${repo.user?.login}`);
+      }
+      return matches;
     });
+
+    console.log(`📋 Found ${userRepos.length} repos for this user`);
 
     // Verify each repo's document still exists in Craft
     const CraftAdvancedIntegration = (await import('../integrations/craft-advanced.js')).default;
