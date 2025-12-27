@@ -251,6 +251,59 @@ class ContinuousSyncService {
     }
     return removed;
   }
+
+  /**
+   * Manually sync a single repository (triggered by user)
+   */
+  async syncSingleRepo(repoFullName, config) {
+    console.log(`\n🔄 Manual sync for ${repoFullName}...`);
+
+    try {
+      const [owner, repo] = repoFullName.split('/');
+
+      // Get sync state from database
+      let syncState = {};
+      if (this.repoStore) {
+        const repoData = this.repoStore.get(repoFullName);
+        if (repoData) {
+          syncState = {
+            lastSyncedAt: repoData.lastSyncedAt,
+            lastProcessedPR: repoData.lastProcessedPR,
+            documentId: repoData.documentId,
+            collectionIds: repoData.collectionIds
+          };
+        }
+      }
+
+      const updater = new DocumentationUpdater(
+        config.githubToken,
+        config.craftMcpUrl
+      );
+
+      const result = await updater.checkForUpdates(owner, repo, 'main', syncState);
+
+      if (result.processed > 0) {
+        console.log(`  ✅ Processed ${result.processed} update(s)`);
+      } else {
+        console.log(`  ✓ No new changes`);
+      }
+
+      // Update last sync time
+      this.lastSyncTimes.set(repoFullName, Date.now());
+
+      if (this.repoStore) {
+        await this.repoStore.updateMetadata(repoFullName, {
+          lastSyncedAt: new Date(),
+          lastProcessedPR: result.highestPR || syncState.lastProcessedPR
+        });
+      }
+
+      return { success: true, result };
+    } catch (error) {
+      console.error(`  ❌ Manual sync failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 export default ContinuousSyncService;

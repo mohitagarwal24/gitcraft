@@ -247,7 +247,12 @@ ${this.formatPackageConfig(packageConfig)}
    - 0.0-0.49: Uncertain (guessing based on limited info)
 4. If something isn't determinable, say so explicitly in openQuestions
 5. For APIs: If no REST/GraphQL endpoints are obvious, set available: "No" or "Unknown"
-6. Provide ACTIONABLE tasks, not generic advice
+6. **ENGINEERING TASKS RULES**:
+   - Generate ONLY 3-5 high-priority, actionable tasks
+   - AVOID generic tasks like "add tests", "improve documentation", "add error handling"
+   - Focus on SPECIFIC, NON-OBVIOUS improvements based on actual code analysis
+   - Each task should be implementable in 1-2 hours
+   - Prioritize security, performance, and architecture issues
 7. Think like a senior engineer reviewing this codebase
 
 **Output**: ONLY valid JSON, no markdown, no explanations, no additional text.`;

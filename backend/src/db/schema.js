@@ -31,6 +31,7 @@ export const repositories = pgTable('repositories', {
     lastProcessedPR: integer('last_processed_pr'), // Last PR number processed
     lastSyncedAt: timestamp('last_synced_at'), // Last successful sync timestamp
     confidence: real('confidence'), // AI analysis confidence (0-1)
+    autoSyncEnabled: integer('auto_sync_enabled').default(1), // 1=true, 0=false
 });
 
 /**

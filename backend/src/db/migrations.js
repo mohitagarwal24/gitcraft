@@ -60,6 +60,11 @@ export async function createTables() {
       ADD COLUMN IF NOT EXISTS confidence REAL
     `).catch(() => { }); // Ignore error if column exists
 
+    await db.execute(sql`
+      ALTER TABLE repositories 
+      ADD COLUMN IF NOT EXISTS auto_sync_enabled INTEGER DEFAULT 1
+    `).catch(() => { }); // Ignore error if column exists
+
     // Create sync_history table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS sync_history (

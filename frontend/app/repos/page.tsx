@@ -12,6 +12,9 @@ interface ConnectedRepo {
   documentId: string;
   connectedAt: string;
   lastUpdated?: string;
+  lastSyncedAt?: string;
+  confidence?: number;
+  autoSyncEnabled?: boolean;
 }
 
 interface SyncStatus {
@@ -30,6 +33,8 @@ function ReposContent() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [togglingAutoSync, setTogglingAutoSync] = useState<string | null>(null);
 
   useEffect(() => {
     const session = searchParams.get('session') || localStorage.getItem('gitcraft-session');
@@ -161,6 +166,64 @@ function ReposContent() {
     const diffHours = Math.floor(diffMinutes / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${Math.floor(diffHours / 24)}d ago`;
+  };
+
+  const handleSyncNow = async (repoFullName: string) => {
+    if (!sessionId) return;
+
+    setSyncing(repoFullName);
+    try {
+      const [owner, repo] = repoFullName.split('/');
+      const response = await fetch(`${API_URL}/sync/trigger/${owner}/${repo}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      });
+
+      if (response.ok) {
+        loadSyncStatus();
+      } else {
+        const error = await response.json();
+        alert(`❌ Sync failed: ${error.message}`);
+      }
+    } catch (error: any) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const handleToggleAutoSync = async (repoFullName: string, currentEnabled: boolean) => {
+    if (!sessionId) return;
+
+    setTogglingAutoSync(repoFullName);
+    try {
+      const response = await fetch(`${API_URL}/sync/auto-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          repoFullName,
+          enabled: !currentEnabled
+        })
+      });
+
+      if (response.ok) {
+        // Update local state
+        setRepos(repos.map(r =>
+          r.repoFullName === repoFullName
+            ? { ...r, autoSyncEnabled: !currentEnabled }
+            : r
+        ));
+      } else {
+        const error = await response.json();
+        alert(`❌ Failed to toggle auto-sync: ${error.message}`);
+      }
+    } catch (error: any) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setTogglingAutoSync(null);
+    }
   };
 
   if (loading) {
@@ -377,7 +440,39 @@ function ReposContent() {
                       )}
                     </div>
 
-                    <div className="flex gap-2 pt-3 border-t border-slate-800">
+                    {/* Sync Controls */}
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-800 mb-3">
+                      <button
+                        onClick={() => handleToggleAutoSync(repo.repoFullName, repo.autoSyncEnabled !== false)}
+                        disabled={togglingAutoSync === repo.repoFullName}
+                        className={`flex items-center gap-2 text-xs font-medium transition-all ${repo.autoSyncEnabled !== false
+                            ? 'text-green-400'
+                            : 'text-slate-500'
+                          }`}
+                      >
+                        <div className={`w-8 h-4 rounded-full relative transition-all ${repo.autoSyncEnabled !== false
+                            ? 'bg-green-500/30'
+                            : 'bg-slate-700'
+                          }`}>
+                          <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${repo.autoSyncEnabled !== false
+                              ? 'bg-green-400 left-4'
+                              : 'bg-slate-500 left-0.5'
+                            }`} />
+                        </div>
+                        Auto-sync
+                      </button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleSyncNow(repo.repoFullName)}
+                        disabled={syncing === repo.repoFullName}
+                        className="px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs rounded-lg font-medium hover:bg-cyan-500/20 transition-all disabled:opacity-50"
+                      >
+                        {syncing === repo.repoFullName ? 'Syncing...' : 'Sync Now'}
+                      </motion.button>
+                    </div>
+
+                    <div className="flex gap-2">
                       <motion.a
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}

@@ -420,6 +420,91 @@ router.post('/debug-mcp', async (req, res) => {
 });
 
 /**
+ * Manually trigger sync for a specific repository
+ */
+router.post('/trigger/:owner/:repo', async (req, res) => {
+  try {
+    const { owner, repo } = req.params;
+    const { sessionId } = req.body;
+    const repoFullName = `${owner}/${repo}`;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Missing sessionId' });
+    }
+
+    const sessionStore = req.app.locals.sessionStore;
+    const session = await sessionStore.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    const repoStore = req.app.locals.repoStore;
+    const repoConfig = repoStore.get(repoFullName);
+    if (!repoConfig) {
+      return res.status(404).json({ error: 'Repository not connected' });
+    }
+
+    // Trigger sync immediately
+    const syncService = req.app.locals.syncService;
+    if (syncService) {
+      console.log(`🔄 Manual sync triggered for ${repoFullName}`);
+      // Run sync for just this repo
+      syncService.syncSingleRepo(repoFullName, repoConfig);
+    }
+
+    res.json({
+      success: true,
+      message: `Sync triggered for ${repoFullName}`,
+      triggeredAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error triggering sync:', error);
+    res.status(500).json({ error: 'Failed to trigger sync', message: error.message });
+  }
+});
+
+/**
+ * Toggle auto-sync for a repository
+ */
+router.post('/auto-sync', async (req, res) => {
+  try {
+    const { sessionId, repoFullName, enabled } = req.body;
+
+    if (!sessionId || !repoFullName || enabled === undefined) {
+      return res.status(400).json({ error: 'Missing sessionId, repoFullName, or enabled' });
+    }
+
+    const sessionStore = req.app.locals.sessionStore;
+    const session = await sessionStore.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    const repoStore = req.app.locals.repoStore;
+    const repoConfig = repoStore.get(repoFullName);
+    if (!repoConfig) {
+      return res.status(404).json({ error: 'Repository not connected' });
+    }
+
+    // Update auto-sync setting
+    await repoStore.updateMetadata(repoFullName, {
+      autoSyncEnabled: enabled ? 1 : 0
+    });
+
+    console.log(`🔄 Auto-sync ${enabled ? 'enabled' : 'disabled'} for ${repoFullName}`);
+
+    res.json({
+      success: true,
+      repoFullName,
+      autoSyncEnabled: enabled
+    });
+  } catch (error) {
+    console.error('Error toggling auto-sync:', error);
+    res.status(500).json({ error: 'Failed to toggle auto-sync', message: error.message });
+  }
+});
+
+/**
  * Get all connected repositories
  * Also verifies documents still exist in Craft - removes connections for deleted docs
  */
@@ -501,7 +586,9 @@ router.get('/connected', async (req, res) => {
         documentId: repo.documentId,
         connectedAt: repo.connectedAt,
         lastUpdated: repo.lastUpdated,
-        confidence: repo.confidence || 0
+        lastSyncedAt: repo.lastSyncedAt,
+        confidence: repo.confidence || 0,
+        autoSyncEnabled: repo.autoSyncEnabled !== 0 // Default true if undefined
       }))
     });
   } catch (error) {
