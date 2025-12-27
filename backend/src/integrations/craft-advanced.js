@@ -714,7 +714,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
     ];
 
     // Add task entries using title + properties format
-    await this.callTool('collectionItems_add', {
+    const tasksResponse = await this.callTool('collectionItems_add', {
       collectionBlockId: collectionId,
       items: tasksToAdd.map(task => ({
         title: task.task,
@@ -728,6 +728,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
       }))
     });
 
+    console.log(`  Tasks response:`, JSON.stringify(tasksResponse, null, 2));
     console.log(`  ✓ ${tasksToAdd.length} task entries added`);
 
     // Add open questions as separate tasks
@@ -789,7 +790,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
     console.log(`  ✓ Doc History collection created (ID: ${collectionId})`);
 
     // Add initial entry using title + properties format
-    await this.callTool('collectionItems_add', {
+    const historyResponse = await this.callTool('collectionItems_add', {
       collectionBlockId: collectionId,
       items: [{
         title: 'Initial Creation',
@@ -802,6 +803,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
       }]
     });
 
+    console.log(`  History response:`, JSON.stringify(historyResponse, null, 2));
     console.log('  ✓ Initial history entry added');
     return collectionId;
   }
