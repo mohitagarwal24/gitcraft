@@ -276,7 +276,7 @@ router.get('/status/:owner/:repo', async (req, res) => {
       lastProcessedPR: repoConfig?.lastProcessedPR || null,
       lastSync: repoConfig?.lastSyncedAt || repoConfig?.lastUpdated || new Date().toISOString(),
       branch: 'main',
-      confidence: repoConfig?.confidence || 0.5,
+      confidence: repoConfig?.confidence !== undefined ? repoConfig.confidence : 0.5,
       connected: !!repoConfig,
       documentId: repoConfig?.documentId,
       documentTitle: repoConfig?.documentTitle

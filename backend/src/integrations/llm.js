@@ -318,6 +318,48 @@ ${this.formatPackageConfig(packageConfig)}
   }
 
   /**
+   * Repair common JSON issues from LLM responses
+   */
+  repairJSON(jsonStr) {
+    // Remove trailing commas before } or ]
+    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+
+    // Fix unescaped newlines in strings
+    jsonStr = jsonStr.replace(/([^\\])\\n/g, '$1\\\\n');
+
+    // Fix truncated arrays - close them properly
+    const openBrackets = (jsonStr.match(/\[/g) || []).length;
+    const closeBrackets = (jsonStr.match(/\]/g) || []).length;
+    if (openBrackets > closeBrackets) {
+      // Try to find where the array was truncated and close it
+      const diff = openBrackets - closeBrackets;
+      for (let i = 0; i < diff; i++) {
+        // Find last incomplete array element and truncate, then close
+        jsonStr = jsonStr.replace(/,\s*"[^"]*$/, '');
+        jsonStr += ']';
+      }
+    }
+
+    // Fix truncated objects
+    const openBraces = (jsonStr.match(/\{/g) || []).length;
+    const closeBraces = (jsonStr.match(/\}/g) || []).length;
+    if (openBraces > closeBraces) {
+      const diff = openBraces - closeBraces;
+      for (let i = 0; i < diff; i++) {
+        jsonStr += '}';
+      }
+    }
+
+    // Remove any trailing text after the last }
+    const lastBrace = jsonStr.lastIndexOf('}');
+    if (lastBrace !== -1) {
+      jsonStr = jsonStr.substring(0, lastBrace + 1);
+    }
+
+    return jsonStr;
+  }
+
+  /**
    * Parse LLM response
    */
   parseAnalysisResponse(response, repoData) {
@@ -328,7 +370,11 @@ ${this.formatPackageConfig(packageConfig)}
         throw new Error('No JSON found in response');
       }
 
-      const analysis = JSON.parse(jsonMatch[0]);
+      // Try to repair common JSON issues from LLM
+      let jsonStr = jsonMatch[0];
+      jsonStr = this.repairJSON(jsonStr);
+
+      const analysis = JSON.parse(jsonStr);
 
       // Add metadata
       analysis.repoName = repoData.repoName;
