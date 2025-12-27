@@ -573,12 +573,23 @@ The automated analysis could not identify public APIs in this codebase. This cou
     const modules = analysis.coreModules || [];
     const techStack = Object.values(analysis.technicalStack || {}).flat();
 
-    // Create collection
+    // Define schema for Release Notes
+    const schema = {
+      properties: [
+        { name: 'version', type: 'text' },
+        { name: 'date', type: 'date' },
+        { name: 'title', type: 'text' },
+        { name: 'summary', type: 'text' },
+        { name: 'pr_number', type: 'number' },
+        { name: 'changes', type: 'text' }
+      ]
+    };
+
+    // Create collection with schema and position
     const collectionResult = await this.callTool('collections_create', {
-      collections: [{
-        name: 'release_notes',
-        location: { pageId: parentId }
-      }]
+      name: 'release_notes',
+      schema: schema,
+      position: { pageId: parentId, position: 'end' }
     });
 
     // Log the actual response to understand its format
@@ -591,22 +602,6 @@ The automated analysis could not identify public APIs in this codebase. This cou
     }
 
     console.log(`  ✓ Release Notes collection created (ID: ${collectionId})`);
-
-
-    // Define schema
-    await this.callTool('collectionSchema_update', {
-      collectionId,
-      schema: {
-        properties: [
-          { name: 'version', type: 'text' },
-          { name: 'date', type: 'date' },
-          { name: 'title', type: 'text' },
-          { name: 'summary', type: 'text' },
-          { name: 'pr_number', type: 'number' },
-          { name: 'changes', type: 'text' }
-        ]
-      }
-    });
 
     // Add initial release
     const initialChanges = `Initial AI-powered analysis completed.
@@ -638,15 +633,27 @@ The automated analysis could not identify public APIs in this codebase. This cou
   async createADRCollection(parentId, analysis) {
     console.log('  Creating adrs collection...');
 
-    const date = new Date().toISOString().split('T')[0];
     const adr = analysis.initialADR || {};
 
-    // Create collection
+    // Define schema for ADRs
+    const schema = {
+      properties: [
+        { name: 'adr_id', type: 'text' },
+        { name: 'title', type: 'text' },
+        { name: 'status', type: 'text' },
+        { name: 'date', type: 'date' },
+        { name: 'context', type: 'text' },
+        { name: 'decision', type: 'text' },
+        { name: 'consequences', type: 'text' },
+        { name: 'confidence', type: 'number' }
+      ]
+    };
+
+    // Create collection with schema and position
     const collectionResult = await this.callTool('collections_create', {
-      collections: [{
-        name: 'adrs',
-        location: { pageId: parentId }
-      }]
+      name: 'adrs',
+      schema: schema,
+      position: { pageId: parentId, position: 'end' }
     });
 
     const collectionId = this.extractCollectionId(collectionResult);
@@ -656,23 +663,6 @@ The automated analysis could not identify public APIs in this codebase. This cou
     }
 
     console.log(`  ✓ ADRs collection created (ID: ${collectionId})`);
-
-    // Define schema
-    await this.callTool('collectionSchema_update', {
-      collectionId,
-      schema: {
-        properties: [
-          { name: 'adr_id', type: 'text' },
-          { name: 'title', type: 'text' },
-          { name: 'status', type: 'text' },
-          { name: 'date', type: 'date' },
-          { name: 'context', type: 'text' },
-          { name: 'decision', type: 'text' },
-          { name: 'consequences', type: 'text' },
-          { name: 'confidence', type: 'number' }
-        ]
-      }
-    });
 
     // Add initial ADR entry
     await this.callTool('collectionItems_add', {
@@ -702,12 +692,23 @@ The automated analysis could not identify public APIs in this codebase. This cou
     const tasks = analysis.engineeringTasks || [];
     const openQuestions = analysis.openQuestions || [];
 
-    // Create collection
+    // Define schema for Engineering Tasks
+    const schema = {
+      properties: [
+        { name: 'task', type: 'text' },
+        { name: 'priority', type: 'text' },
+        { name: 'category', type: 'text' },
+        { name: 'reasoning', type: 'text' },
+        { name: 'status', type: 'text' },
+        { name: 'created_at', type: 'date' }
+      ]
+    };
+
+    // Create collection with schema and position
     const collectionResult = await this.callTool('collections_create', {
-      collections: [{
-        name: 'engineering_tasks',
-        location: { pageId: parentId }
-      }]
+      name: 'engineering_tasks',
+      schema: schema,
+      position: { pageId: parentId, position: 'end' }
     });
 
     const collectionId = this.extractCollectionId(collectionResult);
@@ -717,21 +718,6 @@ The automated analysis could not identify public APIs in this codebase. This cou
     }
 
     console.log(`  ✓ Engineering Tasks collection created (ID: ${collectionId})`);
-
-    // Define schema
-    await this.callTool('collectionSchema_update', {
-      collectionId,
-      schema: {
-        properties: [
-          { name: 'task', type: 'text' },
-          { name: 'priority', type: 'text' },
-          { name: 'category', type: 'text' },
-          { name: 'reasoning', type: 'text' },
-          { name: 'status', type: 'text' },
-          { name: 'created_at', type: 'date' }
-        ]
-      }
-    });
 
     // Add default tasks if none from analysis
     const tasksToAdd = tasks.length > 0 ? tasks : [
@@ -780,12 +766,22 @@ The automated analysis could not identify public APIs in this codebase. This cou
   async createDocHistoryCollection(parentId) {
     console.log('  Creating doc_history collection...');
 
-    // Create collection
+    // Define schema for Doc History
+    const schema = {
+      properties: [
+        { name: 'date', type: 'date' },
+        { name: 'event', type: 'text' },
+        { name: 'description', type: 'text' },
+        { name: 'pr_number', type: 'number' },
+        { name: 'confidence', type: 'text' }
+      ]
+    };
+
+    // Create collection with schema and position
     const collectionResult = await this.callTool('collections_create', {
-      collections: [{
-        name: 'doc_history',
-        location: { pageId: parentId }
-      }]
+      name: 'doc_history',
+      schema: schema,
+      position: { pageId: parentId, position: 'end' }
     });
 
     const collectionId = this.extractCollectionId(collectionResult);
@@ -795,20 +791,6 @@ The automated analysis could not identify public APIs in this codebase. This cou
     }
 
     console.log(`  ✓ Doc History collection created (ID: ${collectionId})`);
-
-    // Define schema
-    await this.callTool('collectionSchema_update', {
-      collectionId,
-      schema: {
-        properties: [
-          { name: 'date', type: 'date' },
-          { name: 'event', type: 'text' },
-          { name: 'description', type: 'text' },
-          { name: 'pr_number', type: 'number' },
-          { name: 'confidence', type: 'text' }
-        ]
-      }
-    });
 
     // Add initial entry
     await this.callTool('collectionItems_add', {
