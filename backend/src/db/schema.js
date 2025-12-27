@@ -28,6 +28,8 @@ export const repositories = pgTable('repositories', {
     connectedAt: timestamp('connected_at').defaultNow().notNull(),
     lastUpdated: timestamp('last_updated').defaultNow().notNull(),
     collectionIds: jsonb('collection_ids'), // {docHistory, releaseNotes}
+    lastProcessedPR: integer('last_processed_pr'), // Last PR number processed
+    lastSyncedAt: timestamp('last_synced_at'), // Last successful sync timestamp
 });
 
 /**

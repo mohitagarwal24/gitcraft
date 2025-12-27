@@ -38,9 +38,22 @@ export async function createTables() {
         "user" JSONB NOT NULL,
         connected_at TIMESTAMP DEFAULT NOW() NOT NULL,
         last_updated TIMESTAMP DEFAULT NOW() NOT NULL,
-        collection_ids JSONB
+        collection_ids JSONB,
+        last_processed_pr INTEGER,
+        last_synced_at TIMESTAMP
       )
     `);
+
+    // Add new columns to existing table if they don't exist (migration)
+    await db.execute(sql`
+      ALTER TABLE repositories 
+      ADD COLUMN IF NOT EXISTS last_processed_pr INTEGER
+    `).catch(() => { }); // Ignore error if column exists
+
+    await db.execute(sql`
+      ALTER TABLE repositories 
+      ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP
+    `).catch(() => { }); // Ignore error if column exists
 
     // Create sync_history table
     await db.execute(sql`

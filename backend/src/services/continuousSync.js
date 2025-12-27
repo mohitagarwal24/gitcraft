@@ -130,12 +130,24 @@ class ContinuousSyncService {
 
         const [owner, repo] = repoFullName.split('/');
 
+        // Get sync state from database
+        let syncState = {};
+        if (this.repoStore) {
+          const repoData = this.repoStore.get(repoFullName);
+          if (repoData) {
+            syncState = {
+              lastSyncedAt: repoData.lastSyncedAt,
+              lastProcessedPR: repoData.lastProcessedPR
+            };
+          }
+        }
+
         const updater = new DocumentationUpdater(
           config.githubToken,
           config.craftMcpUrl
         );
 
-        const result = await updater.checkForUpdates(owner, repo);
+        const result = await updater.checkForUpdates(owner, repo, 'main', syncState);
 
         if (result.processed > 0) {
           const prMsg = result.prCount > 0 ? `${result.prCount} PR(s): ${result.prs.join(', ')}` : '';
@@ -148,6 +160,14 @@ class ContinuousSyncService {
         }
 
         this.lastSyncTimes.set(repoFullName, Date.now());
+
+        // Update sync state in database
+        if (this.repoStore) {
+          await this.repoStore.updateMetadata(repoFullName, {
+            lastSyncedAt: new Date(),
+            lastProcessedPR: result.highestPR || syncState.lastProcessedPR
+          });
+        }
 
       } catch (error) {
         console.error(`  ❌ Failed to sync ${repoFullName}:`, error.message);

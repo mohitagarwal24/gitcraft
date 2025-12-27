@@ -123,6 +123,26 @@ class CraftAdvancedIntegration {
   }
 
   /**
+   * Extract collection ID from various API response formats
+   */
+  extractCollectionId(result) {
+    // Pattern 1: { collections: [{ id: ... }] }
+    if (result?.collections?.[0]?.id) return result.collections[0].id;
+    // Pattern 2: { id: ... }
+    if (result?.id) return result.id;
+    // Pattern 3: Array response [{ id: ... }]
+    if (Array.isArray(result) && result[0]?.id) return result[0].id;
+    // Pattern 4: { result: { id: ... } }
+    if (result?.result?.id) return result.result.id;
+    // Pattern 5: { collection: { id: ... } }
+    if (result?.collection?.id) return result.collection.id;
+    // Pattern 6: Direct string ID
+    if (typeof result === 'string') return result;
+
+    return null;
+  }
+
+  /**
    * Initialize connection
    */
   async initialize() {
@@ -143,8 +163,11 @@ class CraftAdvancedIntegration {
     }
   }
 
+
   /**
-   * Check if document exists
+   * Check if document exists in ACTIVE space (not trash)
+   * Uses documents_search which typically excludes trashed documents
+   * Falls back to documents_list if search fails
    * @throws Error if check fails - no assumptions, fail loudly
    */
   async documentExists(repoName) {
@@ -153,7 +176,38 @@ class CraftAdvancedIntegration {
 
     await this.initialize();
 
-    // Use documents_list tool to get documents
+    // Try documents_search first - this usually excludes trashed documents
+    try {
+      console.log(`🔍 Searching for document "${docTitle}"...`);
+      const searchResult = await this.callTool('documents_search', {
+        query: docTitle
+      });
+
+      const searchDocs = searchResult?.documents || searchResult?.results || [];
+
+      if (Array.isArray(searchDocs)) {
+        const existing = searchDocs.find(doc => {
+          const title = doc.title || doc.name || '';
+          return title.toLowerCase() === docTitle.toLowerCase();
+        });
+
+        if (existing) {
+          console.log(`📄 Document "${docTitle}" found via search (ID: ${existing.id})`);
+          return {
+            exists: true,
+            documentId: existing.id,
+            documentTitle: docTitle
+          };
+        }
+      }
+
+      console.log(`📄 Document "${docTitle}" not found via search`);
+      return { exists: false };
+    } catch (searchError) {
+      console.warn(`⚠️  documents_search failed: ${searchError.message}, falling back to documents_list`);
+    }
+
+    // Fallback to documents_list if search fails
     const result = await this.callTool('documents_list', {});
     const documents = result?.documents || [];
 
@@ -527,13 +581,17 @@ The automated analysis could not identify public APIs in this codebase. This cou
       }]
     });
 
-    const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
+    // Log the actual response to understand its format
+    console.log('  collections_create raw response:', JSON.stringify(collectionResult, null, 2));
+
+    const collectionId = this.extractCollectionId(collectionResult);
 
     if (!collectionId) {
-      throw new Error('Failed to create Release Notes collection - no collection ID returned');
+      throw new Error(`Failed to create release_notes collection - could not extract ID from response: ${JSON.stringify(collectionResult)}`);
     }
 
     console.log(`  ✓ Release Notes collection created (ID: ${collectionId})`);
+
 
     // Define schema
     await this.callTool('collectionSchema_update', {
@@ -591,10 +649,10 @@ The automated analysis could not identify public APIs in this codebase. This cou
       }]
     });
 
-    const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
+    const collectionId = this.extractCollectionId(collectionResult);
 
     if (!collectionId) {
-      throw new Error('Failed to create ADRs collection - no collection ID returned');
+      throw new Error(`Failed to create adrs collection - could not extract ID from response: ${JSON.stringify(collectionResult)}`);
     }
 
     console.log(`  ✓ ADRs collection created (ID: ${collectionId})`);
@@ -652,10 +710,10 @@ The automated analysis could not identify public APIs in this codebase. This cou
       }]
     });
 
-    const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
+    const collectionId = this.extractCollectionId(collectionResult);
 
     if (!collectionId) {
-      throw new Error('Failed to create Engineering Tasks collection - no collection ID returned');
+      throw new Error(`Failed to create engineering_tasks collection - could not extract ID from response: ${JSON.stringify(collectionResult)}`);
     }
 
     console.log(`  ✓ Engineering Tasks collection created (ID: ${collectionId})`);
@@ -730,10 +788,10 @@ The automated analysis could not identify public APIs in this codebase. This cou
       }]
     });
 
-    const collectionId = collectionResult?.collections?.[0]?.id || collectionResult?.id;
+    const collectionId = this.extractCollectionId(collectionResult);
 
     if (!collectionId) {
-      throw new Error('Failed to create Doc History collection - no collection ID returned');
+      throw new Error(`Failed to create doc_history collection - could not extract ID from response: ${JSON.stringify(collectionResult)}`);
     }
 
     console.log(`  ✓ Doc History collection created (ID: ${collectionId})`);

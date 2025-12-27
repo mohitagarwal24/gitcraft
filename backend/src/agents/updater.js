@@ -435,12 +435,26 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
 
   /**
    * Check for new PRs and process updates
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @param {string} branch - Branch to check
+   * @param {Object} syncState - State from database: { lastSyncedAt, lastProcessedPR }
    */
-  async checkForUpdates(owner, repo, branch = 'main') {
+  async checkForUpdates(owner, repo, branch = 'main', syncState = {}) {
     try {
-      const state = await this.getDocumentationState(`${owner}/${repo}`);
-      const lastPR = state.lastProcessedPR || 0;
-      const lastSync = state.lastSync;
+      // Use passed-in state from database, fallback to Craft state for backwards compatibility
+      let lastPR = syncState.lastProcessedPR;
+      let lastSync = syncState.lastSyncedAt;
+
+      // If no state passed, try to get from Craft (backwards compatibility)
+      if (lastPR === undefined && lastSync === undefined) {
+        const state = await this.getDocumentationState(`${owner}/${repo}`);
+        lastPR = state.lastProcessedPR || 0;
+        lastSync = state.lastSync;
+      }
+
+      // Ensure lastPR is a number
+      lastPR = lastPR || 0;
 
       let prCount = 0;
       let commitCount = 0;
@@ -477,7 +491,8 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
         // Filter out merge commits (usually from PRs) and only keep direct commits
         const directCommits = commits.filter(c => !c.message.startsWith('Merge '));
 
-        if (directCommits.length > 0) {
+        if (directCommits.length > 0 && lastSync) {
+          // Only process if we have a lastSync (otherwise we'd process all commits on first run)
           console.log(`  Found ${directCommits.length} new commits to process`);
 
           // Get commit details for significance analysis
@@ -511,6 +526,8 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
           } else {
             console.log(`  ⏭️  Commits are trivial, skipping update`);
           }
+        } else if (!lastSync) {
+          console.log(`  ⏭️  First sync - skipping commit processing (will start from next sync)`);
         } else {
           console.log(`  No new commits found`);
         }
@@ -524,7 +541,9 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
         prs: processedPRs,
         commits: processedCommits,
         prCount,
-        commitCount
+        commitCount,
+        // Return highest processed PR number for database update
+        highestPR: processedPRs.length > 0 ? Math.max(...processedPRs) : lastPR
       };
     } catch (error) {
       console.error('Error checking for updates:', error);
