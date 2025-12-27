@@ -573,21 +573,26 @@ The automated analysis could not identify public APIs in this codebase. This cou
     const modules = analysis.coreModules || [];
     const techStack = Object.values(analysis.technicalStack || {}).flat();
 
-    // Define schema for Release Notes
+    // Define schema matching Craft API format
     const schema = {
+      key: 'release_notes',
+      name: 'Release Notes',
+      contentPropDetails: {
+        key: 'title',
+        name: 'Title'
+      },
       properties: [
-        { name: 'version', type: 'text' },
-        { name: 'date', type: 'date' },
-        { name: 'title', type: 'text' },
-        { name: 'summary', type: 'text' },
-        { name: 'pr_number', type: 'number' },
-        { name: 'changes', type: 'text' }
+        { key: 'version', name: 'Version', type: 'text' },
+        { key: 'date', name: 'Date', type: 'date' },
+        { key: 'summary', name: 'Summary', type: 'text' },
+        { key: 'pr_number', name: 'PR Number', type: 'number' },
+        { key: 'changes', name: 'Changes', type: 'text' }
       ]
     };
 
     // Create collection with schema and position
     const collectionResult = await this.callTool('collections_create', {
-      name: 'release_notes',
+      name: 'Release Notes',
       schema: schema,
       position: { pageId: parentId, position: 'end' }
     });
@@ -603,21 +608,20 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     console.log(`  ✓ Release Notes collection created (ID: ${collectionId})`);
 
-    // Add initial release
-    const initialChanges = `Initial AI-powered analysis completed.
-- 📦 ${modules.length} core modules identified
-- 🛠️ ${techStack.length} technologies detected
-- 📊 ${confidence}% analysis confidence`;
+    // Add initial release - using title + properties format per API
+    const initialChanges = `Initial AI-powered analysis completed. ${modules.length} modules, ${techStack.length} technologies, ${confidence}% confidence`;
 
     await this.callTool('collectionItems_add', {
       collectionId,
       items: [{
-        version: 'v0.1.0',
-        date: date,
         title: 'Initial Analysis',
-        summary: 'Repository connected to GitCraft and baseline documentation established',
-        pr_number: null,
-        changes: initialChanges
+        properties: {
+          version: 'v0.1.0',
+          date: date,
+          summary: 'Repository connected to GitCraft and baseline documentation established',
+          pr_number: 0,
+          changes: initialChanges
+        }
       }]
     });
 
@@ -635,23 +639,28 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     const adr = analysis.initialADR || {};
 
-    // Define schema for ADRs
+    // Define schema matching Craft API format
     const schema = {
+      key: 'adrs',
+      name: 'Architecture Decision Records',
+      contentPropDetails: {
+        key: 'title',
+        name: 'Title'
+      },
       properties: [
-        { name: 'adr_id', type: 'text' },
-        { name: 'title', type: 'text' },
-        { name: 'status', type: 'text' },
-        { name: 'date', type: 'date' },
-        { name: 'context', type: 'text' },
-        { name: 'decision', type: 'text' },
-        { name: 'consequences', type: 'text' },
-        { name: 'confidence', type: 'number' }
+        { key: 'adr_id', name: 'ADR ID', type: 'text' },
+        { key: 'status', name: 'Status', type: 'text' },
+        { key: 'date', name: 'Date', type: 'date' },
+        { key: 'context', name: 'Context', type: 'text' },
+        { key: 'decision', name: 'Decision', type: 'text' },
+        { key: 'consequences', name: 'Consequences', type: 'text' },
+        { key: 'confidence', name: 'Confidence', type: 'number' }
       ]
     };
 
     // Create collection with schema and position
     const collectionResult = await this.callTool('collections_create', {
-      name: 'adrs',
+      name: 'Architecture Decision Records',
       schema: schema,
       position: { pageId: parentId, position: 'end' }
     });
@@ -664,18 +673,20 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     console.log(`  ✓ ADRs collection created (ID: ${collectionId})`);
 
-    // Add initial ADR entry
+    // Add initial ADR entry using title + properties format
     await this.callTool('collectionItems_add', {
       collectionId,
       items: [{
-        adr_id: 'ADR-001',
         title: adr.title || 'Initial Architecture',
-        status: 'Proposed (AI-Inferred)',
-        date: new Date().toISOString(),
-        context: adr.context || 'Initial architecture analyzed from codebase structure.',
-        decision: adr.decision || `System follows ${analysis.architecture?.pattern || 'Unknown'} architecture pattern.`,
-        consequences: JSON.stringify(adr.consequences || { positive: [], negative: [], risks: [] }),
-        confidence: Math.round((analysis.architecture?.confidence || 0.5) * 100)
+        properties: {
+          adr_id: 'ADR-001',
+          status: 'Proposed (AI-Inferred)',
+          date: new Date().toISOString().split('T')[0],
+          context: adr.context || 'Initial architecture analyzed from codebase structure.',
+          decision: adr.decision || `System follows ${analysis.architecture?.pattern || 'Unknown'} architecture pattern.`,
+          consequences: JSON.stringify(adr.consequences || { positive: [], negative: [], risks: [] }),
+          confidence: Math.round((analysis.architecture?.confidence || 0.5) * 100)
+        }
       }]
     });
 
@@ -692,21 +703,26 @@ The automated analysis could not identify public APIs in this codebase. This cou
     const tasks = analysis.engineeringTasks || [];
     const openQuestions = analysis.openQuestions || [];
 
-    // Define schema for Engineering Tasks
+    // Define schema matching Craft API format
     const schema = {
+      key: 'engineering_tasks',
+      name: 'Engineering Tasks',
+      contentPropDetails: {
+        key: 'title',
+        name: 'Task'
+      },
       properties: [
-        { name: 'task', type: 'text' },
-        { name: 'priority', type: 'text' },
-        { name: 'category', type: 'text' },
-        { name: 'reasoning', type: 'text' },
-        { name: 'status', type: 'text' },
-        { name: 'created_at', type: 'date' }
+        { key: 'priority', name: 'Priority', type: 'text' },
+        { key: 'category', name: 'Category', type: 'text' },
+        { key: 'reasoning', name: 'Reasoning', type: 'text' },
+        { key: 'status', name: 'Status', type: 'text' },
+        { key: 'created_at', name: 'Created At', type: 'date' }
       ]
     };
 
     // Create collection with schema and position
     const collectionResult = await this.callTool('collections_create', {
-      name: 'engineering_tasks',
+      name: 'Engineering Tasks',
       schema: schema,
       position: { pageId: parentId, position: 'end' }
     });
@@ -726,16 +742,18 @@ The automated analysis could not identify public APIs in this codebase. This cou
       { task: 'Add deployment documentation', priority: 'Medium', category: 'DevOps', reasoning: 'Help new developers set up the project' }
     ];
 
-    // Add task entries
+    // Add task entries using title + properties format
     await this.callTool('collectionItems_add', {
       collectionId,
       items: tasksToAdd.map(task => ({
-        task: task.task,
-        priority: task.priority || 'Medium',
-        category: task.category || 'General',
-        reasoning: task.reasoning || '',
-        status: 'Todo',
-        created_at: new Date().toISOString()
+        title: task.task,
+        properties: {
+          priority: task.priority || 'Medium',
+          category: task.category || 'General',
+          reasoning: task.reasoning || '',
+          status: 'Todo',
+          created_at: new Date().toISOString().split('T')[0]
+        }
       }))
     });
 
@@ -746,12 +764,14 @@ The automated analysis could not identify public APIs in this codebase. This cou
       await this.callTool('collectionItems_add', {
         collectionId,
         items: openQuestions.map(q => ({
-          task: q,
-          priority: 'Medium',
-          category: 'Open Question',
-          reasoning: 'Needs clarification',
-          status: 'Todo',
-          created_at: new Date().toISOString()
+          title: q,
+          properties: {
+            priority: 'Medium',
+            category: 'Open Question',
+            reasoning: 'Needs clarification',
+            status: 'Todo',
+            created_at: new Date().toISOString().split('T')[0]
+          }
         }))
       });
       console.log(`  ✓ ${openQuestions.length} open questions added`);
@@ -766,20 +786,25 @@ The automated analysis could not identify public APIs in this codebase. This cou
   async createDocHistoryCollection(parentId) {
     console.log('  Creating doc_history collection...');
 
-    // Define schema for Doc History
+    // Define schema matching Craft API format
     const schema = {
+      key: 'doc_history',
+      name: 'Documentation History',
+      contentPropDetails: {
+        key: 'title',
+        name: 'Event'
+      },
       properties: [
-        { name: 'date', type: 'date' },
-        { name: 'event', type: 'text' },
-        { name: 'description', type: 'text' },
-        { name: 'pr_number', type: 'number' },
-        { name: 'confidence', type: 'text' }
+        { key: 'date', name: 'Date', type: 'date' },
+        { key: 'description', name: 'Description', type: 'text' },
+        { key: 'pr_number', name: 'PR Number', type: 'number' },
+        { key: 'confidence', name: 'Confidence', type: 'text' }
       ]
     };
 
     // Create collection with schema and position
     const collectionResult = await this.callTool('collections_create', {
-      name: 'doc_history',
+      name: 'Documentation History',
       schema: schema,
       position: { pageId: parentId, position: 'end' }
     });
@@ -792,15 +817,17 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     console.log(`  ✓ Doc History collection created (ID: ${collectionId})`);
 
-    // Add initial entry
+    // Add initial entry using title + properties format
     await this.callTool('collectionItems_add', {
       collectionId,
       items: [{
-        date: new Date().toISOString(),
-        event: 'Initial Creation',
-        description: 'Engineering Brain created by GitCraft AI',
-        pr_number: null,
-        confidence: 'N/A'
+        title: 'Initial Creation',
+        properties: {
+          date: new Date().toISOString().split('T')[0],
+          description: 'Engineering Brain created by GitCraft AI',
+          pr_number: 0,
+          confidence: 'N/A'
+        }
       }]
     });
 

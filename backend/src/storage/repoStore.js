@@ -97,9 +97,26 @@ class RepositoryStore {
       : new Date();
     const lastUpdated = new Date();
 
-    const enrichedConfig = {
+    // Build the database record with only valid fields
+    const dbRecord = {
       id: repoFullName,
+      githubToken: config.githubToken,
+      craftMcpUrl: config.craftMcpUrl,
+      documentId: config.documentId || null,
+      documentTitle: config.documentTitle || null,
+      sessionId: config.sessionId,
+      user: config.user,
+      connectedAt,
+      lastUpdated,
+      collectionIds: config.collectionIds || null,
+      lastProcessedPR: config.lastProcessedPR || null,
+      lastSyncedAt: config.lastSyncedAt || null,
+    };
+
+    // For memory store, keep all config props
+    const enrichedConfig = {
       ...config,
+      id: repoFullName,
       connectedAt,
       lastUpdated,
     };
@@ -108,12 +125,18 @@ class RepositoryStore {
       try {
         await db
           .insert(repositories)
-          .values(enrichedConfig)
+          .values(dbRecord)
           .onConflictDoUpdate({
             target: repositories.id,
             set: {
-              ...enrichedConfig,
+              githubToken: dbRecord.githubToken,
+              craftMcpUrl: dbRecord.craftMcpUrl,
+              documentId: dbRecord.documentId,
+              documentTitle: dbRecord.documentTitle,
               lastUpdated: new Date(),
+              collectionIds: dbRecord.collectionIds,
+              lastProcessedPR: dbRecord.lastProcessedPR,
+              lastSyncedAt: dbRecord.lastSyncedAt,
             },
           });
         console.log(`✅ Repository saved to database: ${repoFullName}`);
