@@ -334,6 +334,7 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
 
   /**
    * Update state document
+   * Note: Only updates if a state document already exists - won't create one
    */
   async updateState(state, prNumber) {
     try {
@@ -345,6 +346,12 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
 
       // Remove stateDocId before saving
       const { stateDocId, ...stateToSave } = updatedState;
+
+      // Only update if we have a valid state document ID
+      if (!stateDocId) {
+        console.log('  ⚠️  No state document found - skipping state update to Craft');
+        return;
+      }
 
       await this.craft.updateDocument(
         stateDocId,

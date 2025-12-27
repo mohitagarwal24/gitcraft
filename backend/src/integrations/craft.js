@@ -674,6 +674,12 @@ Document the inferred architecture as a baseline, to be refined with each PR.
    * Update document content
    */
   async updateDocument(documentId, content) {
+    // Guard: don't call Craft API with invalid document ID
+    if (!documentId) {
+      console.warn('⚠️  updateDocument called with null/undefined documentId - skipping');
+      return null;
+    }
+
     await this.initialize();
     try {
       // First clear existing content, then add new

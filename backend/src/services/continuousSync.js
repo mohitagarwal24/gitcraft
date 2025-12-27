@@ -138,10 +138,13 @@ class ContinuousSyncService {
         const result = await updater.checkForUpdates(owner, repo);
 
         if (result.processed > 0) {
-          console.log(`  ✅ Processed ${result.processed} new PR(s): ${result.prs.join(', ')}`);
+          const prMsg = result.prCount > 0 ? `${result.prCount} PR(s): ${result.prs.join(', ')}` : '';
+          const commitMsg = result.commitCount > 0 ? `${result.commits.length} commit(s)` : '';
+          const updateMsg = [prMsg, commitMsg].filter(Boolean).join(', ');
+          console.log(`  ✅ Processed ${updateMsg || 'updates'}`);
           successCount++;
         } else {
-          console.log(`  ✓ Up to date (no new PRs)`);
+          console.log(`  ✓ Up to date (no new changes)`);
         }
 
         this.lastSyncTimes.set(repoFullName, Date.now());
