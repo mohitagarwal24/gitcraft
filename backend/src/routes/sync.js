@@ -273,10 +273,10 @@ router.get('/status/:owner/:repo', async (req, res) => {
     // Default state
     let state = {
       repoName: repoFullName,
-      lastProcessedPR: null,
-      lastSync: repoConfig?.lastUpdated || new Date().toISOString(),
+      lastProcessedPR: repoConfig?.lastProcessedPR || null,
+      lastSync: repoConfig?.lastSyncedAt || repoConfig?.lastUpdated || new Date().toISOString(),
       branch: 'main',
-      confidence: 0.5,
+      confidence: repoConfig?.confidence || 0.5,
       connected: !!repoConfig,
       documentId: repoConfig?.documentId,
       documentTitle: repoConfig?.documentTitle

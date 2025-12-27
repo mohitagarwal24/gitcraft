@@ -613,8 +613,8 @@ The automated analysis could not identify public APIs in this codebase. This cou
     // Add initial release - using title + properties format per API
     const initialChanges = `Initial AI-powered analysis completed. ${modules.length} modules, ${techStack.length} technologies, ${confidence}% confidence`;
 
-    await this.callTool('collectionItems_add', {
-      collectionId,
+    const addResult = await this.callTool('collectionItems_add', {
+      collectionBlockId: collectionId,
       items: [{
         title: 'Initial Analysis',
         properties: {
@@ -627,6 +627,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
       }]
     });
 
+    console.log('  collectionItems_add response:', JSON.stringify(addResult, null, 2));
     console.log('  ✓ Initial release note added');
     return collectionId;
   }
@@ -677,7 +678,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     // Add initial ADR entry using title + properties format
     await this.callTool('collectionItems_add', {
-      collectionId,
+      collectionBlockId: collectionId,
       items: [{
         title: adr.title || 'Initial Architecture',
         properties: {
@@ -746,7 +747,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     // Add task entries using title + properties format
     await this.callTool('collectionItems_add', {
-      collectionId,
+      collectionBlockId: collectionId,
       items: tasksToAdd.map(task => ({
         title: task.task,
         properties: {
@@ -764,7 +765,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
     // Add open questions as separate tasks
     if (openQuestions.length > 0) {
       await this.callTool('collectionItems_add', {
-        collectionId,
+        collectionBlockId: collectionId,
         items: openQuestions.map(q => ({
           title: q,
           properties: {
@@ -821,7 +822,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     // Add initial entry using title + properties format
     await this.callTool('collectionItems_add', {
-      collectionId,
+      collectionBlockId: collectionId,
       items: [{
         title: 'Initial Creation',
         properties: {
