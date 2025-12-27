@@ -998,24 +998,209 @@ The automated analysis could not identify public APIs in this codebase. This cou
   }
 
   /**
-   * Update main document content (for major changes like tech stack)
+   * Get all blocks from a document
    */
-  async updateMainDocumentContent(documentId, newContent) {
+  async getDocumentBlocks(documentId) {
     await this.initialize();
 
     try {
-      // Add new content block
-      await this.callTool('markdown_add', {
-        pageId: documentId,
-        markdown: newContent,
-        position: 'end'
+      const result = await this.callTool('blocks_get', {
+        pageId: documentId
       });
-      console.log('  ✓ Main document updated');
+      return result?.blocks || result || [];
+    } catch (error) {
+      console.error('Failed to get document blocks:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Delete specific blocks from a document
+   */
+  async deleteBlocks(blockIds) {
+    await this.initialize();
+
+    try {
+      for (const blockId of blockIds) {
+        await this.callTool('blocks_delete', {
+          blockId: blockId
+        });
+      }
+      console.log(`  ✓ Deleted ${blockIds.length} block(s)`);
+      return true;
+    } catch (error) {
+      console.error('Failed to delete blocks:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Update a specific block's content
+   */
+  async updateBlock(blockId, newContent) {
+    await this.initialize();
+
+    try {
+      await this.callTool('blocks_update', {
+        blockId: blockId,
+        content: newContent
+      });
+      console.log(`  ✓ Updated block ${blockId}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to update block:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Find blocks by content pattern (for finding sections to update)
+   */
+  findBlocksByPattern(blocks, pattern) {
+    const regex = new RegExp(pattern, 'i');
+    return blocks.filter(block => {
+      const content = block.content || block.text || '';
+      return regex.test(content);
+    });
+  }
+
+  /**
+   * Update main document - full update with section replacement
+   * This reads the document, finds relevant sections, and updates or replaces them
+   */
+  async updateMainDocument(documentId, updateConfig) {
+    await this.initialize();
+    const { sectionToUpdate, newContent, deletePattern, appendIfNotFound = true } = updateConfig;
+
+    try {
+      // Get current document structure
+      console.log('  📖 Reading document structure...');
+      const blocks = await this.getDocumentBlocks(documentId);
+
+      if (!blocks || blocks.length === 0) {
+        console.log('  ⚠️  No blocks found in document');
+        if (appendIfNotFound && newContent) {
+          await this.callTool('markdown_add', {
+            pageId: documentId,
+            markdown: newContent,
+            position: 'end'
+          });
+          console.log('  ✓ Added new content at end');
+        }
+        return true;
+      }
+
+      console.log(`  📊 Found ${blocks.length} blocks in document`);
+
+      // If delete pattern specified, find and delete matching blocks
+      if (deletePattern) {
+        const blocksToDelete = this.findBlocksByPattern(blocks, deletePattern);
+        if (blocksToDelete.length > 0) {
+          const idsToDelete = blocksToDelete.map(b => b.id || b.blockId).filter(Boolean);
+          if (idsToDelete.length > 0) {
+            console.log(`  🗑️  Deleting ${idsToDelete.length} outdated blocks...`);
+            await this.deleteBlocks(idsToDelete);
+          }
+        }
+      }
+
+      // If section to update is specified, find and update it
+      if (sectionToUpdate && newContent) {
+        const sectionBlocks = this.findBlocksByPattern(blocks, sectionToUpdate);
+        if (sectionBlocks.length > 0) {
+          const targetBlock = sectionBlocks[0];
+          const blockId = targetBlock.id || targetBlock.blockId;
+          if (blockId) {
+            console.log(`  ✏️  Updating section: ${sectionToUpdate}`);
+            await this.updateBlock(blockId, newContent);
+            return true;
+          }
+        }
+      }
+
+      // If no matching section found, append new content
+      if (appendIfNotFound && newContent) {
+        await this.callTool('markdown_add', {
+          pageId: documentId,
+          markdown: newContent,
+          position: 'end'
+        });
+        console.log('  ✓ Added new section');
+      }
+
       return true;
     } catch (error) {
       console.error('Failed to update main document:', error.message);
       return false;
     }
+  }
+
+  /**
+   * Regenerate and replace a specific section of the document
+   * Used for major updates that need to rewrite entire sections
+   */
+  async regenerateDocumentSection(documentId, sectionName, newMarkdown) {
+    await this.initialize();
+
+    try {
+      const blocks = await this.getDocumentBlocks(documentId);
+
+      // Find section header and related blocks
+      const sectionPattern = `^#+\\s*${sectionName}`;
+      const sectionBlocks = [];
+      let foundSection = false;
+      let sectionLevel = 0;
+
+      for (const block of blocks) {
+        const content = block.content || block.text || '';
+        const headingMatch = content.match(/^(#+)\s*/);
+
+        if (foundSection) {
+          // Check if we hit another same-level or higher heading
+          if (headingMatch && headingMatch[1].length <= sectionLevel) {
+            break; // Stop collecting blocks
+          }
+          sectionBlocks.push(block);
+        } else if (new RegExp(sectionPattern, 'i').test(content)) {
+          foundSection = true;
+          sectionLevel = headingMatch ? headingMatch[1].length : 1;
+          sectionBlocks.push(block); // Include the header itself
+        }
+      }
+
+      // Delete old section blocks
+      if (sectionBlocks.length > 0) {
+        const idsToDelete = sectionBlocks.map(b => b.id || b.blockId).filter(Boolean);
+        if (idsToDelete.length > 0) {
+          console.log(`  🗑️  Removing old "${sectionName}" section (${idsToDelete.length} blocks)`);
+          await this.deleteBlocks(idsToDelete);
+        }
+      }
+
+      // Add new section content
+      await this.callTool('markdown_add', {
+        pageId: documentId,
+        markdown: newMarkdown,
+        position: 'end' // Could be improved to insert at original position
+      });
+      console.log(`  ✓ Regenerated "${sectionName}" section`);
+
+      return true;
+    } catch (error) {
+      console.error(`Failed to regenerate section "${sectionName}":`, error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Update main document content (for major changes like tech stack)
+   * Simplified method for backward compatibility
+   */
+  async updateMainDocumentContent(documentId, newContent) {
+    return this.updateMainDocument(documentId, {
+      newContent,
+      appendIfNotFound: true
+    });
   }
 }
 

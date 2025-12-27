@@ -141,6 +141,11 @@ class DocumentationUpdater {
         );
       }
 
+      // Update main document for major changes (new tech, architecture, breaking changes)
+      if (documentId && isMajorChange) {
+        await this.updateMainDocumentSections(documentId, prNumber, analysis);
+      }
+
       console.log('✅ Collection update complete!');
 
       return {
@@ -151,6 +156,206 @@ class DocumentationUpdater {
       };
     } catch (error) {
       console.error('❌ Collection update failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate markdown content for major document updates
+   */
+  generateDocumentUpdateSection(prNumber, analysis) {
+    const date = new Date().toISOString().split('T')[0];
+    const sections = [];
+
+    // Header
+    sections.push(`\n---\n## 📝 Update: PR #${prNumber} (${date})\n`);
+
+    // Summary
+    if (analysis.summary) {
+      sections.push(`**Summary:** ${analysis.summary}\n`);
+    }
+
+    // New technologies
+    if (analysis.newTechnologies?.length > 0) {
+      sections.push(`### New Technologies\n${analysis.newTechnologies.map(t => `- ${t}`).join('\n')}\n`);
+    }
+
+    // Architecture changes
+    if (analysis.architectureChanges) {
+      sections.push(`### Architecture Changes\n${analysis.architectureChanges}\n`);
+    }
+
+    // Breaking changes
+    if (analysis.breakingChanges) {
+      sections.push(`### ⚠️ Breaking Changes\n${typeof analysis.breakingChanges === 'string' ? analysis.breakingChanges : 'See PR for details'}\n`);
+    }
+
+    // Documentation updates
+    if (analysis.documentationUpdates?.length > 0) {
+      sections.push(`### Documentation Updates\n${analysis.documentationUpdates.map(u => `- ${u}`).join('\n')}\n`);
+    }
+
+    // Only return if we have meaningful content beyond header
+    return sections.length > 1 ? sections.join('\n') : null;
+  }
+
+  /**
+   * Intelligently update main document sections based on change type
+   */
+  async updateMainDocumentSections(documentId, prNumber, analysis) {
+    console.log('  📝 Updating main document sections...');
+
+    try {
+      // 1. If new technologies detected, update Tech Stack section
+      if (analysis.newTechnologies?.length > 0) {
+        const techSection = `## Tech Stack\n\n**Updated from PR #${prNumber}**\n\n${analysis.newTechnologies.map(t => `- ${t}`).join('\n')}\n`;
+        await this.craftAdvanced.updateMainDocument(documentId, {
+          sectionToUpdate: 'Tech Stack',
+          deletePattern: '## Tech Stack',
+          newContent: techSection,
+          appendIfNotFound: true
+        });
+        console.log('  ✓ Updated Tech Stack section');
+      }
+
+      // 2. If architecture changes, update Architecture section
+      if (analysis.architectureChanges) {
+        const archSection = `## Architecture\n\n**Updated from PR #${prNumber}**\n\n${analysis.architectureChanges}\n`;
+        await this.craftAdvanced.regenerateDocumentSection(documentId, 'Architecture', archSection);
+        console.log('  ✓ Updated Architecture section');
+      }
+
+      // 3. If API changes, update API Documentation section
+      if (analysis.publicAPIChanges) {
+        const apiSection = `## API Changes (PR #${prNumber})\n\n${JSON.stringify(analysis.publicAPIChanges, null, 2)}\n`;
+        await this.craftAdvanced.updateMainDocument(documentId, {
+          newContent: apiSection,
+          appendIfNotFound: true
+        });
+        console.log('  ✓ Added API changes section');
+      }
+
+      // 4. If breaking changes, add a warning section
+      if (analysis.breakingChanges) {
+        const breakingSection = `\n---\n\n## ⚠️ Breaking Changes (PR #${prNumber})\n\n${typeof analysis.breakingChanges === 'string' ? analysis.breakingChanges : 'See PR for details'}\n`;
+        await this.craftAdvanced.updateMainDocument(documentId, {
+          newContent: breakingSection,
+          appendIfNotFound: true
+        });
+        console.log('  ✓ Added breaking changes warning');
+      }
+
+      // 5. Always add an update log entry
+      const updateLog = `\n---\n\n### 📝 Update: PR #${prNumber} (${new Date().toISOString().split('T')[0]})\n\n**Summary:** ${analysis.summary || 'No summary'}\n`;
+      await this.craftAdvanced.updateMainDocument(documentId, {
+        newContent: updateLog,
+        appendIfNotFound: true
+      });
+
+      console.log('  ✓ Main document sections updated');
+      return true;
+    } catch (error) {
+      console.error('  ❌ Failed to update main document sections:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Generate markdown content for commit-based updates
+   */
+  generateCommitUpdateSection(commits, significance) {
+    const date = new Date().toISOString().split('T')[0];
+    const latestSha = commits[0]?.sha?.substring(0, 7) || 'unknown';
+    const sections = [];
+
+    // Header
+    sections.push(`\n---\n## 📝 Update: Commits (${date})\n`);
+    sections.push(`**Latest Commit:** ${latestSha}\n`);
+
+    // Summary
+    if (significance.summary) {
+      sections.push(`**Summary:** ${significance.summary}\n`);
+    }
+
+    // Commit messages
+    if (commits.length > 0) {
+      const commitList = commits.slice(0, 5).map(c =>
+        `- \`${c.sha.substring(0, 7)}\` ${c.message.split('\n')[0]}`
+      ).join('\n');
+      sections.push(`### Commits\n${commitList}\n`);
+    }
+
+    // Impact
+    if (significance.impactLevel) {
+      sections.push(`**Impact Level:** ${significance.impactLevel}\n`);
+    }
+
+    return sections.length > 2 ? sections.join('\n') : null;
+  }
+
+  /**
+   * Process commit updates using collections (new approach)
+   * Adds doc history and relevant collection entries based on commit analysis
+   */
+  async processCommitWithCollections(updateData) {
+    const { owner, repo, commits, commitDetails, significance, collectionIds } = updateData;
+
+    console.log(`🔄 Processing commit update with collections for ${owner}/${repo}...`);
+
+    try {
+      // Create a summary of commits
+      const commitSummary = commits.slice(0, 5).map(c => c.message.split('\n')[0]).join('; ');
+      const latestCommitSha = commits[0].sha.substring(0, 7);
+
+      // Add doc history entry
+      if (collectionIds.docHistory) {
+        await this.craftAdvanced.addDocHistoryEntry(collectionIds.docHistory, {
+          event: `Commits: ${latestCommitSha}`,
+          description: commitSummary,
+          prNumber: 0,
+          confidence: `${Math.round((significance.confidence || 0.7) * 100)}%`
+        });
+        console.log(`  ✓ Added doc history for commits`);
+      }
+
+      // Add release note for major commits
+      if (collectionIds.releaseNotes && significance.impactLevel === 'major') {
+        await this.craftAdvanced.addReleaseNote(collectionIds.releaseNotes, {
+          title: `${commitSummary.substring(0, 50)}...`,
+          version: 'HEAD',
+          summary: significance.summary || commitSummary,
+          prNumber: 0,
+          changes: commitDetails.files?.slice(0, 10).map(f => f.filename).join(', ') || 'Various files'
+        });
+        console.log(`  ✓ Added release note for major commits`);
+      }
+
+      // Add follow-up tasks if significance suggests them
+      if (collectionIds.engineeringTasks && significance.suggestedTasks?.length > 0) {
+        await this.craftAdvanced.addTasks(collectionIds.engineeringTasks,
+          significance.suggestedTasks.map(task => ({
+            task: task,
+            priority: 'Medium',
+            category: 'From Commit Analysis',
+            reasoning: 'Generated from commit analysis'
+          }))
+        );
+        console.log(`  ✓ Added ${significance.suggestedTasks.length} task(s)`);
+      }
+
+      // Update main document for major commits
+      if (updateData.documentId && significance.impactLevel === 'major') {
+        const updateContent = this.generateCommitUpdateSection(commits, significance);
+        if (updateContent) {
+          await this.craftAdvanced.updateMainDocumentContent(updateData.documentId, updateContent);
+          console.log('  ✓ Main document updated with commit changes');
+        }
+      }
+
+      console.log('✅ Commit collection update complete!');
+      return { success: true, commits: commits.length };
+    } catch (error) {
+      console.error('❌ Commit collection update failed:', error);
       throw error;
     }
   }
@@ -624,14 +829,28 @@ ${tasks.map(task => `- [ ] ${task}`).join('\n')}
           if (significance.isSignificant) {
             console.log(`  🤖 Commits are significant, updating documentation...`);
 
-            await this.processCommitUpdate({
-              owner,
-              repo,
-              commits: directCommits.slice(0, 10),
-              commitDetails,
-              significance,
-              branch
-            });
+            // Use collection-based updates if collectionIds are available (like PRs)
+            if (collectionIds) {
+              await this.processCommitWithCollections({
+                owner,
+                repo,
+                commits: directCommits.slice(0, 10),
+                commitDetails,
+                significance,
+                documentId: syncState.documentId,
+                collectionIds
+              });
+            } else {
+              // Fall back to legacy markdown-based updates
+              await this.processCommitUpdate({
+                owner,
+                repo,
+                commits: directCommits.slice(0, 10),
+                commitDetails,
+                significance,
+                branch
+              });
+            }
 
             commitCount = directCommits.length;
             processedCommits.push(...directCommits.slice(0, 10).map(c => c.sha.substring(0, 7)));
