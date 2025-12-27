@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb, serial } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, jsonb, serial, real } from 'drizzle-orm/pg-core';
 
 /**
  * Sessions table
