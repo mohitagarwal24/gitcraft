@@ -713,15 +713,15 @@ The automated analysis could not identify public APIs in this codebase. This cou
       { task: 'Add deployment documentation', priority: 'Medium', category: 'DevOps', reasoning: 'Help new developers set up the project' }
     ];
 
-    // Add task entries using title + properties format
+    // Add task entries using task + properties format (Craft expects 'task' not 'title')
     const tasksResponse = await this.callTool('collectionItems_add', {
       collectionBlockId: collectionId,
-      items: tasksToAdd.map(task => ({
-        title: task.task,
+      items: tasksToAdd.map(t => ({
+        task: t.task,
         properties: {
-          priority: task.priority || 'Medium',
-          category: task.category || 'General',
-          reasoning: task.reasoning || '',
+          priority: t.priority || 'Medium',
+          category: t.category || 'General',
+          reasoning: t.reasoning || '',
           status: 'Todo',
           created_at: new Date().toISOString().split('T')[0]
         }
@@ -736,7 +736,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
       await this.callTool('collectionItems_add', {
         collectionBlockId: collectionId,
         items: openQuestions.map(q => ({
-          title: q,
+          task: q,
           properties: {
             priority: 'Medium',
             category: 'Open Question',
@@ -789,11 +789,11 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     console.log(`  ✓ Doc History collection created (ID: ${collectionId})`);
 
-    // Add initial entry using title + properties format
+    // Add initial entry using event + properties format (Craft expects 'event' not 'title')
     const historyResponse = await this.callTool('collectionItems_add', {
       collectionBlockId: collectionId,
       items: [{
-        title: 'Initial Creation',
+        event: 'Initial Creation',
         properties: {
           date: new Date().toISOString().split('T')[0],
           description: 'Engineering Brain created by GitCraft AI',
@@ -950,13 +950,13 @@ The automated analysis could not identify public APIs in this codebase. This cou
     try {
       await this.callTool('collectionItems_add', {
         collectionBlockId,
-        items: tasks.map(task => ({
-          title: task.task || task.title,
+        items: tasks.map(t => ({
+          task: t.task || t.title,
           properties: {
-            priority: task.priority || 'Medium',
-            category: task.category || 'General',
-            reasoning: task.reasoning || '',
-            status: task.status || 'Todo',
+            priority: t.priority || 'Medium',
+            category: t.category || 'General',
+            reasoning: t.reasoning || '',
+            status: t.status || 'Todo',
             created_at: new Date().toISOString().split('T')[0]
           }
         }))
@@ -980,7 +980,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
       await this.callTool('collectionItems_add', {
         collectionBlockId,
         items: [{
-          title: event,
+          event: event,
           properties: {
             date: new Date().toISOString().split('T')[0],
             description: description,
