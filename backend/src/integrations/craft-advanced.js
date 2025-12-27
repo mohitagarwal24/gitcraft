@@ -164,12 +164,9 @@ class CraftAdvancedIntegration {
       throw error;
     }
   }
-
-
   /**
    * Check if document exists in ACTIVE space (not trash)
-   * Uses documents_search which typically excludes trashed documents
-   * Falls back to documents_list if search fails
+   * Uses documents_list as primary method since documents_search has indexing delays
    * @throws Error if check fails - no assumptions, fail loudly
    */
   async documentExists(repoName) {
@@ -178,23 +175,20 @@ class CraftAdvancedIntegration {
 
     await this.initialize();
 
-    // Try documents_search first - this usually excludes trashed documents
+    // Use documents_list as primary - more reliable than search
     try {
-      console.log(`🔍 Searching for document "${docTitle}"...`);
-      const searchResult = await this.callTool('documents_search', {
-        query: docTitle
-      });
+      console.log(`🔍 Checking for document "${docTitle}" via documents_list...`);
+      const result = await this.callTool('documents_list', {});
+      const documents = result?.documents || [];
 
-      const searchDocs = searchResult?.documents || searchResult?.results || [];
-
-      if (Array.isArray(searchDocs)) {
-        const existing = searchDocs.find(doc => {
+      if (Array.isArray(documents)) {
+        const existing = documents.find(doc => {
           const title = doc.title || doc.name || '';
           return title.toLowerCase() === docTitle.toLowerCase();
         });
 
         if (existing) {
-          console.log(`📄 Document "${docTitle}" found via search (ID: ${existing.id})`);
+          console.log(`📄 Document "${docTitle}" found (ID: ${existing.id})`);
           return {
             exists: true,
             documentId: existing.id,
@@ -203,38 +197,12 @@ class CraftAdvancedIntegration {
         }
       }
 
-      console.log(`📄 Document "${docTitle}" not found via search`);
+      console.log(`📄 Document "${docTitle}" not found in ${documents.length} documents`);
       return { exists: false };
-    } catch (searchError) {
-      console.warn(`⚠️  documents_search failed: ${searchError.message}, falling back to documents_list`);
+    } catch (error) {
+      console.error(`❌ documents_list failed: ${error.message}`);
+      throw new Error(`Failed to check document existence: ${error.message}`);
     }
-
-    // Fallback to documents_list if search fails
-    const result = await this.callTool('documents_list', {});
-    const documents = result?.documents || [];
-
-    console.log(`🔍 Checking for document "${docTitle}" among ${documents.length} documents`);
-
-    if (!Array.isArray(documents)) {
-      throw new Error(`documents_list returned invalid format: ${JSON.stringify(result)}`);
-    }
-
-    const existing = documents.find(doc => {
-      const title = doc.title || doc.name || '';
-      return title.toLowerCase() === docTitle.toLowerCase();
-    });
-
-    if (existing) {
-      console.log(`📄 Document "${docTitle}" found (ID: ${existing.id})`);
-      return {
-        exists: true,
-        documentId: existing.id,
-        documentTitle: docTitle
-      };
-    }
-
-    console.log(`📄 Document "${docTitle}" does not exist`);
-    return { exists: false };
   }
 
   /**
