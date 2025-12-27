@@ -126,17 +126,19 @@ class CraftAdvancedIntegration {
    * Extract collection ID from various API response formats
    */
   extractCollectionId(result) {
-    // Pattern 1: { collections: [{ id: ... }] }
+    // Pattern 1: { collectionBlockId: ... } - Craft MCP response format
+    if (result?.collectionBlockId) return result.collectionBlockId;
+    // Pattern 2: { collections: [{ id: ... }] }
     if (result?.collections?.[0]?.id) return result.collections[0].id;
-    // Pattern 2: { id: ... }
+    // Pattern 3: { id: ... }
     if (result?.id) return result.id;
-    // Pattern 3: Array response [{ id: ... }]
+    // Pattern 4: Array response [{ id: ... }]
     if (Array.isArray(result) && result[0]?.id) return result[0].id;
-    // Pattern 4: { result: { id: ... } }
+    // Pattern 5: { result: { id: ... } }
     if (result?.result?.id) return result.result.id;
-    // Pattern 5: { collection: { id: ... } }
+    // Pattern 6: { collection: { id: ... } }
     if (result?.collection?.id) return result.collection.id;
-    // Pattern 6: Direct string ID
+    // Pattern 7: Direct string ID
     if (typeof result === 'string') return result;
 
     return null;
@@ -382,13 +384,13 @@ ${(analysis.scope?.inScope || []).length > 0 ? analysis.scope.inScope.map(item =
 
 ${allTech.length > 0 ? allTech.map(tech => `- ${tech}`).join('\n') : '- Technologies being identified...'}
 
-## Quick Links
+## Document Sections
 
-- [📘 Technical Specification](#technical-specification)
-- [🧾 Release Notes](#release-notes)
-- [📐 Architecture Decisions (ADRs)](#adrs)
-- [📌 Engineering Tasks](#engineering-tasks)
-- [📁 Documentation History](#doc-history)
+- 📘 Technical Specification
+- 🧾 Release Notes
+- 📐 Architecture Decisions (ADRs)
+- 📌 Engineering Tasks
+- 📁 Documentation History
 
 ---
 
