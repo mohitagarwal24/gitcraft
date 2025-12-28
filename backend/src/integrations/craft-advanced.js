@@ -1005,15 +1005,27 @@ The automated analysis could not identify public APIs in this codebase. This cou
 
     try {
       console.log(`  🔍 Fetching blocks for document ${documentId}...`);
-      const result = await this.callTool('blocks_get', {
+      let result = await this.callTool('blocks_get', {
         pageId: documentId
       });
 
       // Debug: log raw response structure
       console.log(`  📋 blocks_get raw response type: ${typeof result}`);
+
+      // Parse JSON string if needed
+      if (typeof result === 'string') {
+        try {
+          result = JSON.parse(result);
+          console.log(`  📋 Parsed JSON string successfully`);
+        } catch (e) {
+          console.log(`  ⚠️  Could not parse as JSON: ${result.substring(0, 200)}`);
+          return [];
+        }
+      }
+
       console.log(`  📋 blocks_get response keys: ${result ? Object.keys(result).join(', ') : 'null'}`);
 
-      const blocks = result?.blocks || result || [];
+      const blocks = result?.blocks || (Array.isArray(result) ? result : []);
       console.log(`  📋 Found ${Array.isArray(blocks) ? blocks.length : 0} blocks`);
 
       // Log first few blocks structure for debugging
