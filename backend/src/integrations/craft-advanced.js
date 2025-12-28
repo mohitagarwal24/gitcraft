@@ -1006,7 +1006,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
     try {
       console.log(`  🔍 Fetching blocks for document ${documentId}...`);
       let result = await this.callTool('blocks_get', {
-        pageId: documentId
+        id: documentId  // API requires 'id' not 'pageId'
       });
 
       // Debug: log raw response structure
