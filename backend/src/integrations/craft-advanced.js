@@ -1004,10 +1004,24 @@ The automated analysis could not identify public APIs in this codebase. This cou
     await this.initialize();
 
     try {
+      console.log(`  🔍 Fetching blocks for document ${documentId}...`);
       const result = await this.callTool('blocks_get', {
         pageId: documentId
       });
-      return result?.blocks || result || [];
+
+      // Debug: log raw response structure
+      console.log(`  📋 blocks_get raw response type: ${typeof result}`);
+      console.log(`  📋 blocks_get response keys: ${result ? Object.keys(result).join(', ') : 'null'}`);
+
+      const blocks = result?.blocks || result || [];
+      console.log(`  📋 Found ${Array.isArray(blocks) ? blocks.length : 0} blocks`);
+
+      // Log first few blocks structure for debugging
+      if (Array.isArray(blocks) && blocks.length > 0) {
+        console.log(`  📋 First block structure: ${JSON.stringify(blocks[0], null, 2).substring(0, 500)}`);
+      }
+
+      return blocks;
     } catch (error) {
       console.error('Failed to get document blocks:', error.message);
       return [];
@@ -1021,6 +1035,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
     await this.initialize();
 
     try {
+      console.log(`  🗑️  Attempting to delete ${blockIds.length} blocks: ${blockIds.slice(0, 5).join(', ')}${blockIds.length > 5 ? '...' : ''}`);
       for (const blockId of blockIds) {
         await this.callTool('blocks_delete', {
           blockId: blockId
@@ -1041,6 +1056,7 @@ The automated analysis could not identify public APIs in this codebase. This cou
     await this.initialize();
 
     try {
+      console.log(`  ✏️  Updating block ${blockId} with new content...`);
       await this.callTool('blocks_update', {
         blockId: blockId,
         content: newContent
@@ -1057,11 +1073,18 @@ The automated analysis could not identify public APIs in this codebase. This cou
    * Find blocks by content pattern (for finding sections to update)
    */
   findBlocksByPattern(blocks, pattern) {
+    console.log(`  🔎 Searching for pattern: ${pattern}`);
     const regex = new RegExp(pattern, 'i');
-    return blocks.filter(block => {
-      const content = block.content || block.text || '';
-      return regex.test(content);
+    const matches = blocks.filter(block => {
+      const content = block.content || block.text || block.markdown || '';
+      const match = regex.test(content);
+      if (match) {
+        console.log(`  ✓ Found match in block: ${block.id || block.blockId || 'unknown'}`);
+      }
+      return match;
     });
+    console.log(`  📊 Pattern "${pattern}" matched ${matches.length} blocks`);
+    return matches;
   }
 
   /**
@@ -1071,6 +1094,13 @@ The automated analysis could not identify public APIs in this codebase. This cou
   async updateMainDocument(documentId, updateConfig) {
     await this.initialize();
     const { sectionToUpdate, newContent, deletePattern, appendIfNotFound = true } = updateConfig;
+
+    console.log(`  📝 updateMainDocument called:`);
+    console.log(`     documentId: ${documentId}`);
+    console.log(`     sectionToUpdate: ${sectionToUpdate}`);
+    console.log(`     deletePattern: ${deletePattern}`);
+    console.log(`     appendIfNotFound: ${appendIfNotFound}`);
+    console.log(`     newContent length: ${newContent?.length || 0}`);
 
     try {
       // Get current document structure

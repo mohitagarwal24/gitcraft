@@ -141,16 +141,11 @@ class DocumentationUpdater {
         );
       }
 
-      // Update main document - triggers for medium/major impact or significant changes
-      // More permissive than release notes to ensure doc stays up to date
-      const shouldUpdateDoc = analysis.impactLevel === 'major' ||
-        analysis.impactLevel === 'medium' ||
-        analysis.changeType === 'feature' ||
-        analysis.changeType === 'refactor' ||
-        analysis.architectureChanges ||
-        analysis.newTechnologies?.length > 0;
+      // Update main document - always update for all merged PRs
+      // Every merged PR is significant enough to document
+      const shouldUpdateDoc = true;
 
-      console.log(`  📊 Document update check: documentId=${documentId}, shouldUpdate=${shouldUpdateDoc}, impactLevel=${analysis.impactLevel}, changeType=${analysis.changeType}`);
+      console.log(`  📊 PR Document update check: documentId=${documentId}, shouldUpdate=${shouldUpdateDoc}, impactLevel=${analysis.impactLevel}, changeType=${analysis.changeType}`);
 
       if (documentId && shouldUpdateDoc) {
         await this.updateMainDocumentSections(documentId, prNumber, analysis);
@@ -362,12 +357,11 @@ class DocumentationUpdater {
         console.log(`  ✓ Added ${significance.suggestedTasks.length} task(s)`);
       }
 
-      // Update main document for significant commits (medium/major impact)
-      const shouldUpdateCommitDoc = significance.impactLevel === 'major' ||
-        significance.impactLevel === 'medium' ||
-        significance.suggestedTasks?.length > 0;
+      // Update main document for commits - always update since we already filtered for significance
+      // The commit analysis marks isSignificant=true to get here, so we should update the doc
+      const shouldUpdateCommitDoc = true; // Already filtered for significance earlier
 
-      console.log(`  📊 Commit doc update check: documentId=${updateData.documentId}, shouldUpdate=${shouldUpdateCommitDoc}, impactLevel=${significance.impactLevel}`);
+      console.log(`  📊 Commit doc update check: documentId=${updateData.documentId}, shouldUpdate=${shouldUpdateCommitDoc}, significance=${JSON.stringify({ impactLevel: significance.impactLevel, isSignificant: significance.isSignificant, summary: significance.summary?.substring(0, 50) })}`);
 
       if (updateData.documentId && shouldUpdateCommitDoc) {
         const updateContent = this.generateCommitUpdateSection(commits, significance);
