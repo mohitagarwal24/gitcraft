@@ -141,8 +141,18 @@ class DocumentationUpdater {
         );
       }
 
-      // Update main document for major changes (new tech, architecture, breaking changes)
-      if (documentId && isMajorChange) {
+      // Update main document - triggers for medium/major impact or significant changes
+      // More permissive than release notes to ensure doc stays up to date
+      const shouldUpdateDoc = analysis.impactLevel === 'major' ||
+        analysis.impactLevel === 'medium' ||
+        analysis.changeType === 'feature' ||
+        analysis.changeType === 'refactor' ||
+        analysis.architectureChanges ||
+        analysis.newTechnologies?.length > 0;
+
+      console.log(`  📊 Document update check: documentId=${documentId}, shouldUpdate=${shouldUpdateDoc}, impactLevel=${analysis.impactLevel}, changeType=${analysis.changeType}`);
+
+      if (documentId && shouldUpdateDoc) {
         await this.updateMainDocumentSections(documentId, prNumber, analysis);
       }
 
@@ -204,8 +214,16 @@ class DocumentationUpdater {
    */
   async updateMainDocumentSections(documentId, prNumber, analysis) {
     console.log('  📝 Updating main document sections...');
+    console.log(`     documentId: ${documentId}`);
+    console.log(`     prNumber: ${prNumber}`);
+    console.log(`     newTechnologies: ${JSON.stringify(analysis.newTechnologies)}`);
+    console.log(`     architectureChanges: ${!!analysis.architectureChanges}`);
+    console.log(`     publicAPIChanges: ${!!analysis.publicAPIChanges}`);
+    console.log(`     breakingChanges: ${analysis.breakingChanges}`);
 
     try {
+      let updatedSomething = false;
+
       // 1. If new technologies detected, update Tech Stack section
       if (analysis.newTechnologies?.length > 0) {
         const techSection = `## Tech Stack\n\n**Updated from PR #${prNumber}**\n\n${analysis.newTechnologies.map(t => `- ${t}`).join('\n')}\n`;
@@ -216,6 +234,7 @@ class DocumentationUpdater {
           appendIfNotFound: true
         });
         console.log('  ✓ Updated Tech Stack section');
+        updatedSomething = true;
       }
 
       // 2. If architecture changes, update Architecture section
@@ -343,8 +362,14 @@ class DocumentationUpdater {
         console.log(`  ✓ Added ${significance.suggestedTasks.length} task(s)`);
       }
 
-      // Update main document for major commits
-      if (updateData.documentId && significance.impactLevel === 'major') {
+      // Update main document for significant commits (medium/major impact)
+      const shouldUpdateCommitDoc = significance.impactLevel === 'major' ||
+        significance.impactLevel === 'medium' ||
+        significance.suggestedTasks?.length > 0;
+
+      console.log(`  📊 Commit doc update check: documentId=${updateData.documentId}, shouldUpdate=${shouldUpdateCommitDoc}, impactLevel=${significance.impactLevel}`);
+
+      if (updateData.documentId && shouldUpdateCommitDoc) {
         const updateContent = this.generateCommitUpdateSection(commits, significance);
         if (updateContent) {
           await this.craftAdvanced.updateMainDocumentContent(updateData.documentId, updateContent);
