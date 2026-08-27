@@ -74,8 +74,10 @@ class LLMIntegration {
       const model = this.gemini.getGenerativeModel({
         model: this.model,
         generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 4096,
+          temperature: 0.2,
+          maxOutputTokens: 8192,
+          // Force JSON when supported by the API (ignored by older SDK paths if unsupported)
+          responseMimeType: 'application/json',
         }
       });
 
@@ -254,6 +256,9 @@ ${this.formatPackageConfig(packageConfig)}
    - Each task should be implementable in 1-2 hours
    - Prioritize security, performance, and architecture issues
 7. Think like a senior engineer reviewing this codebase
+8. JSON MUST be strictly valid: double-quoted keys/strings only, no trailing commas, no comments, no markdown fences
+9. Keep string values plain text — do not nest raw JSON objects inside strings; use proper nested objects/arrays
+10. Keep the response under ~6000 tokens; prefer concise descriptions over long essays
 
 **Output**: ONLY valid JSON, no markdown, no explanations, no additional text.`;
   }
@@ -323,23 +328,90 @@ ${this.formatPackageConfig(packageConfig)}
   }
 
   /**
+   * Extract the outermost JSON object from an LLM response
+   */
+  extractJSONObject(text) {
+    if (!text) return null;
+
+    let cleaned = text.trim();
+    // Strip markdown fences
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    cleaned = cleaned.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '');
+
+    const start = cleaned.indexOf('{');
+    if (start === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < cleaned.length; i++) {
+      const ch = cleaned[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === '\\') {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === '{') depth++;
+      if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          return cleaned.slice(start, i + 1);
+        }
+      }
+    }
+
+    // Unbalanced — return from first brace and let repair close it
+    return cleaned.slice(start);
+  }
+
+  /**
    * Repair common JSON issues from LLM responses
    */
   repairJSON(jsonStr) {
+    // Normalize smart quotes
+    jsonStr = jsonStr
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'");
+
+    // Remove // line comments and /* block comments */
+    jsonStr = jsonStr.replace(/^\s*\/\/.*$/gm, '');
+    jsonStr = jsonStr.replace(/\/\*[\s\S]*?\*\//g, '');
+    // Trailing // comments after JSON values
+    jsonStr = jsonStr.replace(/("(?:\\.|[^"\\])*")\s*\/\/[^\n\r]*/g, '$1');
+    jsonStr = jsonStr.replace(/(\d+(?:\.\d+)?|true|false|null)\s*\/\/[^\n\r]*/g, '$1');
+    jsonStr = jsonStr.replace(/([}\]])\s*\/\/[^\n\r]*/g, '$1');
+
     // Remove trailing commas before } or ]
     jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+    // Repeat once more for nested cases after comment removal
+    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
 
-    // Fix unescaped newlines in strings
-    jsonStr = jsonStr.replace(/([^\\])\\n/g, '$1\\\\n');
+    // Quote unquoted object keys: { foo: 1 } or { foo-bar: 1 }
+    jsonStr = jsonStr.replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":');
 
-    // Fix truncated arrays - close them properly
+    // Replace single-quoted strings with double-quoted (simple cases)
+    jsonStr = jsonStr.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, inner) => {
+      return `"${inner.replace(/"/g, '\\"')}"`;
+    });
+
+    // Remove bare control characters that break JSON.parse (keep \n/\r/\t escapes)
+    jsonStr = jsonStr.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ' ');
+
+    // Fix truncated arrays
     const openBrackets = (jsonStr.match(/\[/g) || []).length;
     const closeBrackets = (jsonStr.match(/\]/g) || []).length;
     if (openBrackets > closeBrackets) {
-      // Try to find where the array was truncated and close it
       const diff = openBrackets - closeBrackets;
       for (let i = 0; i < diff; i++) {
-        // Find last incomplete array element and truncate, then close
         jsonStr = jsonStr.replace(/,\s*"[^"]*$/, '');
         jsonStr += ']';
       }
@@ -355,11 +427,8 @@ ${this.formatPackageConfig(packageConfig)}
       }
     }
 
-    // Remove any trailing text after the last }
-    const lastBrace = jsonStr.lastIndexOf('}');
-    if (lastBrace !== -1) {
-      jsonStr = jsonStr.substring(0, lastBrace + 1);
-    }
+    // Final trailing-comma sweep after closers added
+    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
 
     return jsonStr;
   }
@@ -369,17 +438,23 @@ ${this.formatPackageConfig(packageConfig)}
    */
   parseAnalysisResponse(response, repoData) {
     try {
-      // Extract JSON from response (in case there's extra text)
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
+      let jsonStr = this.extractJSONObject(response);
+      if (!jsonStr) {
         throw new Error('No JSON found in response');
       }
 
-      // Try to repair common JSON issues from LLM
-      let jsonStr = jsonMatch[0];
       jsonStr = this.repairJSON(jsonStr);
 
-      const analysis = JSON.parse(jsonStr);
+      let analysis;
+      try {
+        analysis = JSON.parse(jsonStr);
+      } catch (firstErr) {
+        // Second pass: truncate at error-ish trailing garbage after last complete top-level close
+        console.warn('⚠️ JSON parse failed after repair, retrying with aggressive cleanup:', firstErr.message);
+        console.warn('⚠️ Near error context:', jsonStr.substring(Math.max(0, 5600), 5900));
+        jsonStr = this.repairJSON(jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']'));
+        analysis = JSON.parse(jsonStr);
+      }
 
       // Add metadata
       analysis.repoName = repoData.repoName;
