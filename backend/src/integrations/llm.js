@@ -19,7 +19,7 @@ class LLMIntegration {
         throw new Error('GOOGLE_API_KEY is required when using Gemini. Get one free at https://makersuite.google.com/app/apikey');
       }
       this.gemini = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-      this.model = 'gemini-2.5-flash-lite'; // Use stable model
+      this.model = 'gemini-3.5-flash-lite'; // 2.5-flash-lite no longer available to new API keys
     }
 
     console.log(`🤖 LLM Provider: ${this.provider} (Model: ${this.model})`);
