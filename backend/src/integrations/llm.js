@@ -1,5 +1,6 @@
 import { Anthropic } from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { jsonrepair } from 'jsonrepair';
 
 class LLMIntegration {
   constructor() {
@@ -42,11 +43,47 @@ class LLMIntegration {
         throw new Error(`Unsupported LLM provider: ${this.provider}`);
       }
 
-      return this.parseAnalysisResponse(response, repoData);
+      let analysis = this.parseAnalysisResponse(response, repoData);
+
+      // If parse fell back to empty analysis, ask the model to repair the JSON once
+      if ((analysis.confidence === 0 || analysis.overview?.tagline === 'Analysis failed' || analysis.parseError) && this.provider === 'google') {
+        console.warn('⚠️ Parsed analysis looks like a fallback — requesting Gemini JSON repair...');
+        try {
+          const repaired = await this.repairJSONWithGemini(response);
+          analysis = this.parseAnalysisResponse(repaired, repoData, { allowFallback: true });
+          if (analysis.parseError || analysis.confidence === 0) {
+            console.warn('⚠️ Gemini JSON repair still failed; using fallback analysis');
+          } else {
+            console.log('✅ Gemini JSON repair succeeded');
+          }
+        } catch (repairErr) {
+          console.warn('⚠️ Gemini JSON repair threw:', repairErr.message);
+        }
+      }
+
+      return analysis;
     } catch (error) {
       console.error('Error analyzing repository:', error);
       throw new Error(`LLM analysis failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Ask Gemini to return strictly valid JSON from a broken payload
+   */
+  async repairJSONWithGemini(brokenText) {
+    const repairPrompt = `Fix the following into STRICTLY valid JSON.
+Rules:
+- Return ONLY the JSON object
+- Double-quoted keys and strings only
+- No markdown fences, no comments, no trailing commas
+- Escape any quotes inside strings
+- Preserve meaning; shorten long string fields if needed to keep JSON valid
+
+Broken content:
+${brokenText.substring(0, 12000)}`;
+
+    return this.analyzeWithGemini(repairPrompt);
   }
 
   /**
@@ -257,8 +294,10 @@ ${this.formatPackageConfig(packageConfig)}
    - Prioritize security, performance, and architecture issues
 7. Think like a senior engineer reviewing this codebase
 8. JSON MUST be strictly valid: double-quoted keys/strings only, no trailing commas, no comments, no markdown fences
-9. Keep string values plain text — do not nest raw JSON objects inside strings; use proper nested objects/arrays
-10. Keep the response under ~6000 tokens; prefer concise descriptions over long essays
+9. NEVER put unescaped double quotes inside string values. Prefer apostrophes or rephrase.
+10. Keep every string short: overview.description max 400 chars; architecture.description max 300 chars; other prose fields max 200 chars
+11. Prefer arrays of short bullets over long paragraphs
+12. Keep the full response compact and complete (no truncation mid-JSON)
 
 **Output**: ONLY valid JSON, no markdown, no explanations, no additional text.`;
   }
@@ -382,6 +421,9 @@ ${this.formatPackageConfig(packageConfig)}
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2018\u2019]/g, "'");
 
+    // Escape literal newlines/tabs inside JSON strings
+    jsonStr = this.escapeControlCharsInStrings(jsonStr);
+
     // Remove // line comments and /* block comments */
     jsonStr = jsonStr.replace(/^\s*\/\/.*$/gm, '');
     jsonStr = jsonStr.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -392,10 +434,9 @@ ${this.formatPackageConfig(packageConfig)}
 
     // Remove trailing commas before } or ]
     jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
-    // Repeat once more for nested cases after comment removal
     jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
 
-    // Quote unquoted object keys: { foo: 1 } or { foo-bar: 1 }
+    // Quote unquoted object keys
     jsonStr = jsonStr.replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":');
 
     // Replace single-quoted strings with double-quoted (simple cases)
@@ -403,58 +444,116 @@ ${this.formatPackageConfig(packageConfig)}
       return `"${inner.replace(/"/g, '\\"')}"`;
     });
 
-    // Remove bare control characters that break JSON.parse (keep \n/\r/\t escapes)
+    // Remove bare control characters outside of already-escaped sequences
     jsonStr = jsonStr.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ' ');
 
-    // Fix truncated arrays
+    // Fix truncated arrays/objects
     const openBrackets = (jsonStr.match(/\[/g) || []).length;
     const closeBrackets = (jsonStr.match(/\]/g) || []).length;
     if (openBrackets > closeBrackets) {
-      const diff = openBrackets - closeBrackets;
-      for (let i = 0; i < diff; i++) {
+      for (let i = 0; i < openBrackets - closeBrackets; i++) {
         jsonStr = jsonStr.replace(/,\s*"[^"]*$/, '');
         jsonStr += ']';
       }
     }
 
-    // Fix truncated objects
     const openBraces = (jsonStr.match(/\{/g) || []).length;
     const closeBraces = (jsonStr.match(/\}/g) || []).length;
     if (openBraces > closeBraces) {
-      const diff = openBraces - closeBraces;
-      for (let i = 0; i < diff; i++) {
+      for (let i = 0; i < openBraces - closeBraces; i++) {
         jsonStr += '}';
       }
     }
 
-    // Final trailing-comma sweep after closers added
     jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
-
     return jsonStr;
+  }
+
+  /**
+   * Escape raw newlines/tabs that appear inside JSON string literals
+   */
+  escapeControlCharsInStrings(jsonStr) {
+    let out = '';
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < jsonStr.length; i++) {
+      const ch = jsonStr[i];
+      if (inString) {
+        if (escaped) {
+          out += ch;
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          out += ch;
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          out += ch;
+          inString = false;
+          continue;
+        }
+        if (ch === '\n') {
+          out += '\\n';
+          continue;
+        }
+        if (ch === '\r') {
+          out += '\\r';
+          continue;
+        }
+        if (ch === '\t') {
+          out += '\\t';
+          continue;
+        }
+        out += ch;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      out += ch;
+    }
+    return out;
+  }
+
+  /**
+   * Try parse → repairJSON → jsonrepair library
+   */
+  tryParseJSON(text) {
+    const extracted = this.extractJSONObject(text);
+    if (!extracted) {
+      throw new Error('No JSON found in response');
+    }
+
+    const attempts = [];
+    attempts.push(extracted);
+    attempts.push(this.repairJSON(extracted));
+    try {
+      attempts.push(jsonrepair(extracted));
+    } catch (_) {
+      // jsonrepair can throw on hopeless input
+    }
+    try {
+      attempts.push(jsonrepair(this.repairJSON(extracted)));
+    } catch (_) {}
+
+    let lastError;
+    for (const candidate of attempts) {
+      try {
+        return JSON.parse(candidate);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error('Unable to parse JSON');
   }
 
   /**
    * Parse LLM response
    */
-  parseAnalysisResponse(response, repoData) {
+  parseAnalysisResponse(response, repoData, options = {}) {
+    const allowFallback = options.allowFallback !== false;
     try {
-      let jsonStr = this.extractJSONObject(response);
-      if (!jsonStr) {
-        throw new Error('No JSON found in response');
-      }
-
-      jsonStr = this.repairJSON(jsonStr);
-
-      let analysis;
-      try {
-        analysis = JSON.parse(jsonStr);
-      } catch (firstErr) {
-        // Second pass: truncate at error-ish trailing garbage after last complete top-level close
-        console.warn('⚠️ JSON parse failed after repair, retrying with aggressive cleanup:', firstErr.message);
-        console.warn('⚠️ Near error context:', jsonStr.substring(Math.max(0, 5600), 5900));
-        jsonStr = this.repairJSON(jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']'));
-        analysis = JSON.parse(jsonStr);
-      }
+      const analysis = this.tryParseJSON(response);
 
       // Add metadata
       analysis.repoName = repoData.repoName;
@@ -524,6 +623,10 @@ ${this.formatPackageConfig(packageConfig)}
       console.error('Error parsing LLM response:', error);
       console.error('Response snippet:', response?.substring(0, 500));
 
+      if (!allowFallback) {
+        throw error;
+      }
+
       // Return fallback analysis
       return {
         repoName: repoData.repoName,
@@ -555,14 +658,12 @@ ${this.formatPackageConfig(packageConfig)}
           title: 'Analysis Failed',
           context: 'Automated analysis encountered an error',
           decision: 'Manual review required',
-          consequences: { positive: [], negative: [], risks: ['No automated documentation available'] }
+          consequences: { positive: [], negative: [], risks: ['Incomplete documentation'] }
         },
-        engineeringTasks: [
-          { category: 'Documentation', priority: 'High', task: 'Manually review and document codebase', reasoning: 'Automated analysis failed' }
-        ],
+        engineeringTasks: [],
         confidence: 0,
         analyzedAt: new Date().toISOString(),
-        error: error.message
+        parseError: true
       };
     }
   }
